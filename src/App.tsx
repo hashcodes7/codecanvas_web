@@ -4,7 +4,9 @@ import './index.css';
 interface NodeData {
   id: string;
   title: string;
-  content: string;
+  type: 'file' | 'code';
+  content?: string;
+  uri?: string;
   x: number;
   y: number;
 }
@@ -13,6 +15,7 @@ const INITIAL_NODES: NodeData[] = [
   {
     id: '1',
     title: 'Main.tsx',
+    type: 'code',
     content: 'import React from "react";\nimport ReactDOM from "react-dom";\n\nReactDOM.render(<App />, document.getElementById("root"));',
     x: 100,
     y: 100,
@@ -20,6 +23,7 @@ const INITIAL_NODES: NodeData[] = [
   {
     id: '2',
     title: 'App.tsx',
+    type: 'code',
     content: 'function App() {\n  return <div>Hello Infinite Canvas</div>;\n}',
     x: 500,
     y: 150,
@@ -113,6 +117,47 @@ function App() {
     setOffset({ x: 0, y: 0 });
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const x = (e.clientX - rect.left - offset.x) / scale;
+    const y = (e.clientY - rect.top - offset.y) / scale;
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      const newNodePromises = files.map((file, index) => {
+        return new Promise<NodeData>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            resolve({
+              id: Date.now().toString() + index,
+              title: file.name,
+              type: 'file',
+              content: event.target?.result as string || '',
+              uri: `file://${file.name}`,
+              x: x + index * 20,
+              y: y + index * 20,
+            });
+          };
+          reader.readAsText(file);
+        });
+      });
+
+      const newNodes = await Promise.all(newNodePromises);
+      setNodes(prev => [...prev, ...newNodes]);
+    }
+  };
+
   return (
     <div
       className="canvas-viewport"
@@ -121,6 +166,8 @@ function App() {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
       <div
         className="canvas-transform-layer"
@@ -137,7 +184,7 @@ function App() {
         {nodes.map(node => (
           <div
             key={node.id}
-            className={`canvas-node ${selectedNodeId === node.id ? 'selected' : ''}`}
+            className={`canvas-node ${selectedNodeId === node.id ? 'selected' : ''} ${node.type}-node`}
             style={{
               left: node.x,
               top: node.y,
@@ -148,7 +195,10 @@ function App() {
               className="node-header"
               onPointerDown={(e) => handleNodeDragStart(node.id, e)}
             >
-              <span className="node-title">{node.title}</span>
+              <div className="node-title-container">
+                {node.type === 'file' && <i className="bi bi-file-earmark-code" style={{ marginRight: '8px', color: '#a78bfa' }}></i>}
+                <span className="node-title">{node.title}</span>
+              </div>
               <div style={{ display: 'flex', gap: '4px' }}>
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ff5f56' }} />
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ffbd2e' }} />
@@ -156,7 +206,13 @@ function App() {
               </div>
             </div>
             <div className="node-content">
-              {node.content}
+              <pre><code>{node.content}</code></pre>
+              {node.type === 'file' && (
+                <div className="uri-footer">
+                  <i className="bi bi-link-45deg"></i>
+                  {node.uri}
+                </div>
+              )}
             </div>
           </div>
         ))}

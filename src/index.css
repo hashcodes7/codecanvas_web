@@ -130,6 +130,11 @@ body {
   cursor: move;
 }
 
+.node-title-container {
+  display: flex;
+  align-items: center;
+}
+
 .node-title {
   font-weight: 600;
   font-size: 0.9rem;
@@ -141,7 +146,41 @@ body {
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--text-secondary);
-  white-space: pre-wrap;
+  overflow: hidden;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.node-content pre {
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.node-content code {
+  font-family: var(--font-mono);
+}
+
+.uri-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-glass);
+  font-size: 11px;
+  color: var(--accent-primary);
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.uri-footer i {
+  font-size: 14px;
 }
 
 /* UI Overlays */
