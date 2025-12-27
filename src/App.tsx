@@ -158,6 +158,38 @@ function App() {
     }
   };
 
+  const getLanguageFromFilename = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      // TypeScript / React
+      case 'ts': return 'typescript';
+      case 'tsx': return 'tsx';
+      // JavaScript
+      case 'js':
+      case 'jsx': return 'javascript';
+      // Web
+      case 'html': return 'markup';
+      case 'css': return 'css';
+      // Data
+      case 'json': return 'json';
+      // Backend / Others
+      case 'py': return 'python';
+      case 'rust':
+      case 'rs': return 'rust';
+      case 'go': return 'go';
+      case 'java': return 'java';
+      case 'cpp':
+      case 'c': return 'cpp';
+      default: return 'javascript';
+    }
+  };
+
+  React.useEffect(() => {
+    if ((window as any).Prism) {
+      (window as any).Prism.highlightAll();
+    }
+  }, [nodes]);
+
   return (
     <div
       className="canvas-viewport"
@@ -206,7 +238,11 @@ function App() {
               </div>
             </div>
             <div className="node-content">
-              <pre><code>{node.content}</code></pre>
+              <pre className={`language-${getLanguageFromFilename(node.title)}`}>
+                <code className={`language-${getLanguageFromFilename(node.title)}`}>
+                  {node.content}
+                </code>
+              </pre>
               {node.type === 'file' && (
                 <div className="uri-footer">
                   <i className="bi bi-link-45deg"></i>

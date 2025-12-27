@@ -164,6 +164,20 @@ body {
   font-family: var(--font-mono);
 }
 
+/* Prism Overrides */
+.node-content pre[class*="language-"] {
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  text-shadow: none !important;
+}
+
+.node-content code[class*="language-"] {
+  background: transparent !important;
+  text-shadow: none !important;
+  font-family: var(--font-mono) !important;
+}
+
 .uri-footer {
   margin-top: 12px;
   padding-top: 12px;
