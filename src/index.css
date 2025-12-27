@@ -294,6 +294,41 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
+/* Connections Layer */
+.canvas-svg-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20000px;
+  height: 20000px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.connection-path {
+  fill: none;
+  stroke: var(--accent-primary);
+  stroke-width: 2px;
+  stroke-linecap: round;
+  transition: stroke 0.2s ease;
+  z-index: 3;
+}
+
+.connection-path.selected {
+  stroke: #fff;
+  filter: drop-shadow(0 0 5px var(--accent-primary));
+  z-index: 3;
+}
+
+.temp-connection {
+  fill: none;
+  stroke: var(--accent-primary);
+  stroke-width: 2px;
+  stroke-dasharray: 5, 5;
+  opacity: 0.6;
+  z-index: 2;
+}
+
 ::selection {
   background: var(--accent-primary);
   color: white;
