@@ -184,9 +184,71 @@ function App() {
     }
   };
 
+  const activateSymbols = (editorElement: HTMLElement) => {
+    const tokens = editorElement.querySelectorAll('.token');
+    tokens.forEach((token: any, index) => {
+      const name = token.innerText.trim();
+      if (!name) return;
+      if (/^[\(\)\[\]\{\}:;,.\/\|\s\\!?"']+$/.test(name)) return;
+      token.dataset.handleId = `token-${name}-${index}`;
+    });
+  };
+
+  const addGenericHandlesToCode = (editorElement: HTMLElement) => {
+    const walker = document.createTreeWalker(editorElement, NodeFilter.SHOW_TEXT, null);
+    const nodesToReplace: Text[] = [];
+    let textNode;
+    while (textNode = walker.nextNode() as Text) {
+      if (!textNode.parentElement?.closest('[data-handle-id]') && textNode.textContent?.trim()) {
+        nodesToReplace.push(textNode);
+      }
+    }
+
+    const tokenRegex = /(https?:\/\/[^\s\(\)\[\]\{\}:;,"'<>]+)|([\(\)\[\]\{\}:;,.\/\|\s\\!?"']+)|([^\(\)\[\]\{\}:;,.\/\|\s\\!?"']+)/gi;
+
+    nodesToReplace.forEach((textNode, textNodeIndex) => {
+      const content = textNode.textContent || '';
+      const container = document.createElement('span');
+      let html = '';
+
+      let match;
+      tokenRegex.lastIndex = 0;
+      let tokenIndex = 0;
+
+      while ((match = tokenRegex.exec(content)) !== null) {
+        const [full, url, sep, word] = match;
+        if (url) {
+          html += `<span class="word-handle" data-handle-id="url-${textNodeIndex}-${tokenIndex}">${url}</span>`;
+        } else if (sep) {
+          html += sep;
+        } else if (word) {
+          html += `<span class="word-handle" data-handle-id="word-${word}-${textNodeIndex}-${tokenIndex}">${word}</span>`;
+        }
+        tokenIndex++;
+      }
+
+      if (html) {
+        container.innerHTML = html;
+        const fragment = document.createDocumentFragment();
+        while (container.firstChild) {
+          fragment.appendChild(container.firstChild);
+        }
+        textNode.replaceWith(fragment);
+      }
+    });
+  };
+
   React.useEffect(() => {
     if ((window as any).Prism) {
       (window as any).Prism.highlightAll();
+
+      // Small delay to ensure Prism finished DOM transformations
+      setTimeout(() => {
+        document.querySelectorAll('.code-editor').forEach((editor: any) => {
+          activateSymbols(editor);
+          addGenericHandlesToCode(editor);
+        });
+      }, 50);
     }
   }, [nodes]);
 
@@ -238,11 +300,18 @@ function App() {
               </div>
             </div>
             <div className="node-content">
-              <pre className={`language-${getLanguageFromFilename(node.title)}`}>
-                <code className={`language-${getLanguageFromFilename(node.title)}`}>
-                  {node.content}
-                </code>
-              </pre>
+              <div style={{ display: 'flex' }}>
+                <div className="line-numbers">
+                  {node.content?.split('\n').map((_, i) => (
+                    <span key={i}>{i + 1}</span>
+                  ))}
+                </div>
+                <pre className={`code-editor language-${getLanguageFromFilename(node.title)}`}>
+                  <code className={`language-${getLanguageFromFilename(node.title)}`}>
+                    {node.content}
+                  </code>
+                </pre>
+              </div>
               {node.type === 'file' && (
                 <div className="uri-footer">
                   <i className="bi bi-link-45deg"></i>
