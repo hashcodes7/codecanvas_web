@@ -26,11 +26,34 @@ interface Connection {
   };
 }
 
+const STORAGE_KEYS = {
+  NODES: 'codecanvas-nodes',
+  CONNECTIONS: 'codecanvas-connections',
+  TRANSFORM: 'codecanvas-transform'
+};
+
 function App() {
-  const [nodes, setNodes] = useState<NodeData[]>(INITIAL_NODES);
-  const [connections, setConnections] = useState<Connection[]>([]);
-  const [scale, setScale] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  // Initialize state from local storage or defaults
+  const [nodes, setNodes] = useState<NodeData[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.NODES);
+    return saved ? JSON.parse(saved) : INITIAL_NODES;
+  });
+
+  const [connections, setConnections] = useState<Connection[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CONNECTIONS);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [scale, setScale] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.TRANSFORM);
+    return saved ? JSON.parse(saved).scale : 1;
+  });
+
+  const [offset, setOffset] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.TRANSFORM);
+    return saved ? JSON.parse(saved).offset : { x: 0, y: 0 };
+  });
+
   const [isPanning, setIsPanning] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [linkingState, setLinkingState] = useState<{
@@ -45,6 +68,24 @@ function App() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const draggingNodeId = useRef<string | null>(null);
+  const saveTimeoutRef = useRef<number | null>(null);
+
+  // Debounced save to local storage
+  React.useEffect(() => {
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = window.setTimeout(() => {
+      localStorage.setItem(STORAGE_KEYS.NODES, JSON.stringify(nodes));
+      localStorage.setItem(STORAGE_KEYS.CONNECTIONS, JSON.stringify(connections));
+      localStorage.setItem(STORAGE_KEYS.TRANSFORM, JSON.stringify({ scale, offset }));
+    }, 500);
+
+    return () => {
+      if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
+    };
+  }, [nodes, connections, scale, offset]);
 
   // Calculate handle offsets relative to node top-left
   const updateHandleOffsets = () => {
