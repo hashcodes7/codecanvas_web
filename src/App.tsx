@@ -462,15 +462,59 @@ function App() {
 
 
   React.useEffect(() => {
+    // Function to apply handles to a specific container
+    const applyHandles = (container: HTMLElement) => {
+      // First, try standard Prism tokens
+      activateSymbols(container);
+      // Then catch anything Prism missed or plain text
+      addGenericHandlesToCode(container);
+    };
+
     if ((window as any).Prism) {
-      (window as any).Prism.highlightAll();
-      setTimeout(() => {
-        document.querySelectorAll('.code-editor').forEach((editor: any) => {
-          activateSymbols(editor);
-          addGenericHandlesToCode(editor);
+      // Highlight Code Blocks
+      document.querySelectorAll('.code-editor code').forEach((codeBlock: any) => {
+        // Force highlight immediately (async callback)
+        (window as any).Prism.highlightElement(codeBlock, false, () => {
+          const preElement = codeBlock.parentElement;
+          if (preElement) applyHandles(preElement);
+          updateHandleOffsets();
         });
-        updateHandleOffsets();
-      }, 50);
+      });
+
+      // Handle Plain Text Nodes
+      document.querySelectorAll('.text-node-content').forEach((textBlock: any) => {
+        applyHandles(textBlock);
+      });
+
+      // Poll ensures that if Prism is slow or DOM updates lag, we still get handles
+      const pollInterval = setInterval(() => {
+        let appliedCount = 0;
+        document.querySelectorAll('.code-editor').forEach((editor: any) => {
+          // Check if we have handles already
+          if (editor.querySelectorAll('[data-handle-id]').length === 0) {
+            const code = editor.querySelector('code');
+            if (code) {
+              // Re-apply handles if missing
+              applyHandles(editor);
+            }
+          } else {
+            appliedCount++;
+          }
+        });
+
+        if (appliedCount > 0 && appliedCount === document.querySelectorAll('.code-editor').length) {
+          updateHandleOffsets(); // Final position update
+          clearInterval(pollInterval);
+        }
+      }, 500);
+
+      // Timeout safety to clear interval
+      setTimeout(() => clearInterval(pollInterval), 5000);
+    } else {
+      // Fallback if Prism is not present at all
+      document.querySelectorAll('.code-editor').forEach((editor: any) => {
+        applyHandles(editor);
+      });
     }
   }, [nodes]);
 
@@ -545,17 +589,38 @@ function App() {
             </div>
             <div className="node-content">
               {node.type === 'text' ? (
-                <textarea
-                  className="text-node-input"
-                  placeholder="Type something..."
-                  value={node.content}
-                  onChange={(e) => {
-                    setNodes(prev => prev.map(n =>
-                      n.id === node.id ? { ...n, content: e.target.value, isDirty: true } : n
-                    ));
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                />
+                node.isEditing ? (
+                  <textarea
+                    className="text-node-input"
+                    placeholder="Type something..."
+                    value={node.content}
+                    onChange={(e) => {
+                      setNodes(prev => prev.map(n =>
+                        n.id === node.id ? { ...n, content: e.target.value, isDirty: true } : n
+                      ));
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    autoFocus
+                    onBlur={() => setNodes(prev => prev.map(n => n.id === node.id ? { ...n, isEditing: false } : n))}
+                  />
+                ) : (
+                  <pre
+                    className="text-node-content code-editor"
+                    style={{
+                      whiteSpace: 'pre-wrap',
+                      fontFamily: 'inherit',
+                      margin: 0,
+                      height: '100%',
+                      overflow: 'auto',
+                      outline: 'none',
+                      padding: '12px',
+                      color: '#e2e8f0'
+                    }}
+                    onDoubleClick={() => setNodes(prev => prev.map(n => n.id === node.id ? { ...n, isEditing: true } : n))}
+                  >
+                    {node.content || 'Double-click to edit'}
+                  </pre>
+                )
               ) : (
                 <div style={{ display: 'flex' }}>
                   {node.content ? (
@@ -576,9 +641,22 @@ function App() {
                           }}
                           onPointerDown={(e) => e.stopPropagation()}
                           autoFocus
+                          onBlur={() => setNodes(prev => prev.map(n => n.id === node.id ? { ...n, isEditing: false } : n))}
                         />
                       ) : (
-                        <pre className={`code-editor language-${getLanguageFromFilename(node.title)}`}>
+                        <pre
+                          className={`code-editor language-${getLanguageFromFilename(node.title)}`}
+                          style={{
+                            cursor: 'default', // Force pointer to avoid I-beam
+                            userSelect: 'none'  // Prevent native selection to prioritize handles
+                          }}
+                          onDoubleClick={() => {
+                            // Only allow edit if write permission/loaded
+                            if (node.content) {
+                              setNodes(prev => prev.map(n => n.id === node.id ? { ...n, isEditing: true } : n));
+                            }
+                          }}
+                        >
                           <code className={`language-${getLanguageFromFilename(node.title)}`}>
                             {node.content}
                           </code>
@@ -636,6 +714,18 @@ function App() {
                 </div>
               )}
             </div>
+            {node.type === 'file' && (
+              <>
+                <div className="handle handle-left-1" data-handle-id="left-1"></div>
+                <div className="handle handle-left-2" data-handle-id="left-2"></div>
+                <div className="handle handle-right-1" data-handle-id="right-1"></div>
+                <div className="handle handle-right-2" data-handle-id="right-2"></div>
+                <div className="handle handle-top-1" data-handle-id="top-1"></div>
+                <div className="handle handle-top-2" data-handle-id="top-2"></div>
+                <div className="handle handle-bottom-1" data-handle-id="bottom-1"></div>
+                <div className="handle handle-bottom-2" data-handle-id="bottom-2"></div>
+              </>
+            )}
           </div>
         ))}
 
@@ -714,7 +804,7 @@ function App() {
           <i className="bi bi-share"></i>
         </button>
       </div>
-    </div>
+    </div >
   );
 }
 
