@@ -62,6 +62,10 @@ function App() {
   const draggingNodeId = useRef<string | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
 
+  // Touch gestures state
+  const lastTouchDistance = useRef<number | null>(null);
+  const initialPinchCenter = useRef<{ x: number, y: number } | null>(null);
+
   // Load file contents from IndexedDB on mount
   useEffect(() => {
     const loadContents = async () => {
@@ -256,32 +260,7 @@ function App() {
 
 
   // Zoom logic
-  const handleWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = -e.deltaY;
-      const factor = Math.pow(1.1, delta / 100);
 
-      const newScale = Math.min(Math.max(scale * factor, 0.1), 5);
-
-      const rect = viewportRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-
-      const newOffsetX = mouseX - (mouseX - offset.x) * (newScale / scale);
-      const newOffsetY = mouseY - (mouseY - offset.y) * (newScale / scale);
-
-      setScale(newScale);
-      setOffset({ x: newOffsetX, y: newOffsetY });
-    } else {
-      setOffset(prev => ({
-        x: prev.x - e.deltaX,
-        y: prev.y - e.deltaY
-      }));
-    }
-  };
 
   const handlePointerDown = (e: React.PointerEvent) => {
     const target = e.target as HTMLElement;
@@ -520,11 +499,139 @@ function App() {
 
 
 
+  // Touch Handlers for Pinch Zoom
+  // Touch Handlers for Pinch Zoom attached via Ref for passive: false support
+  React.useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.stopPropagation();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        lastTouchDistance.current = dist;
+        initialPinchCenter.current = {
+          x: (t1.clientX + t2.clientX) / 2,
+          y: (t1.clientY + t2.clientY) / 2
+        };
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && lastTouchDistance.current) {
+        // Critical: This prevents browser zoom
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        const center = {
+          x: (t1.clientX + t2.clientX) / 2,
+          y: (t1.clientY + t2.clientY) / 2
+        };
+
+        const scaleRatio = dist / lastTouchDistance.current;
+
+        // We need to use functional state updates or refs for state variables to avoid stale closures
+        // Since we are inside useEffect with dependencies, we can use current state, 
+        // BUT we need to be careful about the dependency array potentially resetting listeners too often.
+        // Ideally, we'd use refs for scale/offset, but that requires a bigger refactor.
+        // For now, we will add [scale, offset] to the effect deps, which is acceptable 
+        // (listeners re-attach on frame updates, might be slight perf hit but functional).
+
+        setScale(prevScale => {
+          const newScale = Math.min(Math.max(prevScale * scaleRatio, 0.1), 5);
+
+          setOffset(prevOffset => {
+            const rect = el.getBoundingClientRect();
+            const cx = center.x - rect.left;
+            const cy = center.y - rect.top;
+
+            // We need the "effective" scale before this update? 
+            // Actually, simplified math:
+            // NewOffset = P - (P - OldOffset) * (NewScale / OldScale)
+
+            const newOffsetX = cx - (cx - prevOffset.x) * (newScale / prevScale);
+            const newOffsetY = cy - (cy - prevOffset.y) * (newScale / prevScale);
+            return { x: newOffsetX, y: newOffsetY };
+          });
+
+          return newScale;
+        });
+
+        lastTouchDistance.current = dist;
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        lastTouchDistance.current = null;
+        initialPinchCenter.current = null;
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      // Prevent browser zoom (Ctrl + Wheel)
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+
+        const delta = -e.deltaY;
+        // Use functional state to avoid stale closures
+        setScale(prevScale => {
+          const factor = Math.pow(1.1, delta / 100);
+          const newScale = Math.min(Math.max(prevScale * factor, 0.1), 5);
+
+          setOffset(prevOffset => {
+            const rect = el.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // Calculate offset based on current (previous) scale state
+            const newOffsetX = mouseX - (mouseX - prevOffset.x) * (newScale / prevScale);
+            const newOffsetY = mouseY - (mouseY - prevOffset.y) * (newScale / prevScale);
+            return { x: newOffsetX, y: newOffsetY };
+          });
+          return newScale;
+        });
+      } else {
+        // Panning (Standard Wheel)
+        // Note: We don't preventDefault here by default to allow node content scrolling.
+        // But if we want to force canvas pan, we can.
+        // Behavior: If e.target is canvas, pan. If inside node, bubbling might occur.
+        // For consistent "like native" feel, we only pan if the event wasn't consumed?
+        // Simpler approach: Always pan canvas, but rely on browser to handle scrollable children first?
+        // Actually, since we are using offset/translate, we are doing virtual scrolling.
+        // We should just update offset.
+
+        // Check if we are over a scrollable element?
+        // For now, simple implementation:
+        setOffset(prev => ({
+          x: prev.x - e.deltaX,
+          y: prev.y - e.deltaY
+        }));
+      }
+    };
+
+    el.addEventListener('touchstart', handleTouchStart, { passive: false });
+    el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    el.addEventListener('touchend', handleTouchEnd);
+    el.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchmove', handleTouchMove);
+      el.removeEventListener('touchend', handleTouchEnd);
+      el.removeEventListener('wheel', handleWheel);
+    };
+  }, [scale, offset]);
+
   return (
     <div
       className="canvas-viewport"
       ref={viewportRef}
-      onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
