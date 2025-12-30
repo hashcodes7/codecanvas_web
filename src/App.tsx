@@ -1,14 +1,20 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './index.css';
+import { FileStorage } from './storage';
+import { FileNodeService } from './FileNodeService';
 
 interface NodeData {
   id: string;
   title: string;
-  type: 'file' | 'code';
+  type: 'file' | 'code' | 'text';
   content?: string;
   uri?: string;
   x: number;
   y: number;
+  width?: number;
+  height?: number;
+  isEditing?: boolean;
+  hasWritePermission?: boolean;
 }
 
 const INITIAL_NODES: NodeData[] = [
@@ -44,14 +50,16 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [scale, setScale] = useState(() => {
+  const [scale, setScale] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.TRANSFORM);
-    return saved ? JSON.parse(saved).scale : 1;
+    const parsed = saved ? JSON.parse(saved) : null;
+    return parsed ? parsed.scale : 1;
   });
 
-  const [offset, setOffset] = useState(() => {
+  const [offset, setOffset] = useState<{ x: number, y: number }>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.TRANSFORM);
-    return saved ? JSON.parse(saved).offset : { x: 0, y: 0 };
+    const parsed = saved ? JSON.parse(saved) : null;
+    return parsed ? parsed.offset : { x: 0, y: 0 };
   });
 
   const [isPanning, setIsPanning] = useState(false);
@@ -64,20 +72,69 @@ function App() {
   } | null>(null);
 
   const [handleOffsets, setHandleOffsets] = useState<Record<string, { x: number, y: number }>>({});
+  const [loadingContent, setLoadingContent] = useState(true);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const draggingNodeId = useRef<string | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
 
-  // Debounced save to local storage
-  React.useEffect(() => {
+  // Load file contents from IndexedDB on mount
+  useEffect(() => {
+    const loadContents = async () => {
+      const updatedNodes = await Promise.all(
+        nodes.map(async (node) => {
+          if (node.type === 'file' && !node.content) {
+            const content = await FileStorage.getFileContent(node.id);
+            if (content) {
+              return { ...node, content };
+            }
+          }
+          return node;
+        })
+      );
+      setNodes(updatedNodes);
+      setLoadingContent(false);
+    };
+    loadContents();
+  }, []);
+
+  // Debounced save to local storage and IndexedDB
+  useEffect(() => {
+    if (loadingContent) return; // Don't save during initial load
+
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
     }
 
-    saveTimeoutRef.current = window.setTimeout(() => {
-      localStorage.setItem(STORAGE_KEYS.NODES, JSON.stringify(nodes));
+    saveTimeoutRef.current = window.setTimeout(async () => {
+      // Save file contents to IndexedDB
+      await Promise.all(
+        nodes.map(async (node) => {
+          if ((node.type === 'file' || node.type === 'text') && node.content) {
+            await FileStorage.saveFileContent(node.id, node.content);
+
+            // If it's a file with write permission, auto-save to disk
+            if (node.type === 'file' && node.hasWritePermission) {
+              const handle = await FileStorage.getFileHandle(node.id);
+              if (handle) {
+                await FileNodeService.saveFile(handle, node.content);
+              }
+            }
+          }
+        })
+      );
+
+      // Clean nodes for localStorage: remove content from file type nodes
+      const persistentNodes = nodes.map(node => {
+        if (node.type === 'file') {
+          const { content, ...rest } = node;
+          return rest;
+        }
+        return node;
+      });
+
+      localStorage.setItem(STORAGE_KEYS.NODES, JSON.stringify(persistentNodes));
       localStorage.setItem(STORAGE_KEYS.CONNECTIONS, JSON.stringify(connections));
       localStorage.setItem(STORAGE_KEYS.TRANSFORM, JSON.stringify({ scale, offset }));
     }, 500);
@@ -85,7 +142,90 @@ function App() {
     return () => {
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
     };
-  }, [nodes, connections, scale, offset]);
+  }, [nodes, connections, scale, offset, loadingContent]);
+
+  const addTextNode = () => {
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    // Center the new node on screen (approx)
+    const x = (rect.width / 2 - offset.x - 100) / scale;
+    const y = (rect.height / 2 - offset.y - 50) / scale;
+
+    const newNode: NodeData = {
+      id: `text-${Date.now()}`,
+      title: 'Note',
+      type: 'text',
+      content: '',
+      x,
+      y,
+      width: 200,
+      height: 150
+    };
+
+    setNodes(prev => [...prev, newNode]);
+    setSelectedNodeId(newNode.id);
+  };
+
+  const syncNodeFromDisk = async (nodeId: string) => {
+    try {
+      const handle = await FileStorage.getFileHandle(nodeId);
+      let content: string | null = null;
+
+      if (handle) {
+        content = await FileNodeService.readFile(handle);
+      } else {
+        // No handle exists, prompt user to select file
+        const [fileHandle] = await (window as any).showOpenFilePicker({
+          types: [
+            {
+              description: 'Code Files',
+              accept: {
+                'text/*': ['.ts', '.tsx', '.js', '.jsx', '.py', '.java', '.cpp', '.c', '.go', '.rs', '.css', '.html', '.json']
+              }
+            }
+          ]
+        });
+
+        if (fileHandle) {
+          await FileStorage.saveFileHandle(nodeId, fileHandle);
+          content = await FileNodeService.readFile(fileHandle);
+        }
+      }
+
+      if (content !== null) {
+        setNodes(prev => prev.map(n =>
+          n.id === nodeId ? { ...n, content: content! } : n
+        ));
+      }
+    } catch (error) {
+      console.error('Failed to sync file:', error);
+    }
+  };
+
+  const requestWritePermission = async (nodeId: string) => {
+    const handle = await FileStorage.getFileHandle(nodeId);
+    if (!handle) return;
+
+    const granted = await FileNodeService.verifyPermission(handle, true);
+    if (granted) {
+      setNodes(prev => prev.map(n =>
+        n.id === nodeId ? { ...n, hasWritePermission: true, isEditing: true } : n
+      ));
+    }
+  };
+
+  const saveNodeToDisk = async (nodeId: string, content: string) => {
+    const handle = await FileStorage.getFileHandle(nodeId);
+    if (!handle) return;
+
+    const success = await FileNodeService.saveFile(handle, content);
+    if (success) {
+      setNodes(prev => prev.map(n =>
+        n.id === nodeId ? { ...n, isDirty: false } : n
+      ));
+    }
+  };
 
   // Calculate handle offsets relative to node top-left
   const updateHandleOffsets = () => {
@@ -278,6 +418,35 @@ function App() {
     const x = (e.clientX - rect.left - offset.x) / scale;
     const y = (e.clientY - rect.top - offset.y) / scale;
 
+    // Use the new service to get file handles for persistent access
+    const handles = await FileNodeService.getHandlesFromDataTransfer(e.dataTransfer);
+
+    if (handles.length > 0) {
+      const newNodes = await Promise.all(handles.map(async (handle, index) => {
+        const nodeId = `node-${Date.now()}-${index}`;
+        const content = await FileNodeService.readFile(handle) || '';
+
+        // Save handle for later sync
+        await FileStorage.saveFileHandle(nodeId, handle);
+
+        return {
+          id: nodeId,
+          title: handle.name,
+          type: 'file' as const,
+          content,
+          uri: `file://${handle.name}`,
+          x: x + index * 20,
+          y: y + index * 20,
+          hasWritePermission: false, // Default to read-only
+          isEditing: false
+        };
+      }));
+
+      setNodes(prev => [...prev, ...newNodes]);
+      return;
+    }
+
+    // Fallback for browsers without File System Access API or if handles couldn't be retrieved
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       const newNodePromises = files.map((file, index) => {
@@ -437,6 +606,8 @@ function App() {
             style={{
               left: node.x,
               top: node.y,
+              width: node.width,
+              height: node.height
             }}
             onPointerDown={() => setSelectedNodeId(node.id)}
           >
@@ -446,6 +617,7 @@ function App() {
             >
               <div className="node-title-container">
                 {node.type === 'file' && <i className="bi bi-file-earmark-code" style={{ marginRight: '8px', color: '#a78bfa' }}></i>}
+                {node.type === 'text' && <i className="bi bi-sticky" style={{ marginRight: '8px', color: '#fcd34d' }}></i>}
                 <span className="node-title">{node.title}</span>
               </div>
               <div style={{ display: 'flex', gap: '4px' }}>
@@ -455,22 +627,95 @@ function App() {
               </div>
             </div>
             <div className="node-content">
-              <div style={{ display: 'flex' }}>
-                <div className="line-numbers">
-                  {node.content?.split('\n').map((_, i) => (
-                    <span key={i}>{i + 1}</span>
-                  ))}
+              {node.type === 'text' ? (
+                <textarea
+                  className="text-node-input"
+                  placeholder="Type something..."
+                  value={node.content}
+                  onChange={(e) => {
+                    setNodes(prev => prev.map(n =>
+                      n.id === node.id ? { ...n, content: e.target.value } : n
+                    ));
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <div style={{ display: 'flex' }}>
+                  {node.content ? (
+                    <>
+                      <div className="line-numbers">
+                        {node.content.split('\n').map((_, i) => (
+                          <span key={i}>{i + 1}</span>
+                        ))}
+                      </div>
+                      {node.isEditing ? (
+                        <textarea
+                          className="code-editor-textarea"
+                          value={node.content}
+                          onChange={(e) => {
+                            setNodes(prev => prev.map(n =>
+                              n.id === node.id ? { ...n, content: e.target.value } : n
+                            ));
+                          }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          autoFocus
+                        />
+                      ) : (
+                        <pre className={`code-editor language-${getLanguageFromFilename(node.title)}`}>
+                          <code className={`language-${getLanguageFromFilename(node.title)}`}>
+                            {node.content}
+                          </code>
+                        </pre>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ padding: '20px', color: '#6b7280', fontSize: '0.875rem', textAlign: 'center', width: '100%' }}>
+                      <i className="bi bi-cloud-download" style={{ display: 'block', fontSize: '1.5rem', marginBottom: '8px' }}></i>
+                      Content not loaded from system
+                    </div>
+                  )}
                 </div>
-                <pre className={`code-editor language-${getLanguageFromFilename(node.title)}`}>
-                  <code className={`language-${getLanguageFromFilename(node.title)}`}>
-                    {node.content}
-                  </code>
-                </pre>
-              </div>
+              )}
               {node.type === 'file' && (
                 <div className="uri-footer">
                   <i className="bi bi-link-45deg"></i>
                   {node.uri}
+                  <button
+                    className="sync-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      syncNodeFromDisk(node.id);
+                    }}
+                    title="Sync with file on disk"
+                  >
+                    <i className="bi bi-arrow-repeat"></i>
+                  </button>
+
+                  {!node.hasWritePermission ? (
+                    <button
+                      className="sync-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        requestWritePermission(node.id);
+                      }}
+                      title="Request Edit Permission"
+                      style={{ marginLeft: '4px', color: '#6b7280' }}
+                    >
+                      <i className="bi bi-pencil"></i>
+                    </button>
+                  ) : (
+                    <button
+                      className="sync-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        saveNodeToDisk(node.id, node.content || '');
+                      }}
+                      title="Save to Disk"
+                      style={{ marginLeft: '4px', color: '#10b981' }}
+                    >
+                      <i className="bi bi-save"></i>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -520,8 +765,8 @@ function App() {
       </div>
 
       <div className="canvas-controls">
-        <button className="control-btn" onClick={() => setScale(s => Math.min(s + 0.1, 5))}>+</button>
-        <button className="control-btn" onClick={() => setScale(s => Math.max(s - 0.1, 0.1))}>−</button>
+        <button className="control-btn" onClick={() => setScale((s: number) => Math.min(s + 0.1, 5))}>+</button>
+        <button className="control-btn" onClick={() => setScale((s: number) => Math.max(s - 0.1, 0.1))}>−</button>
         <button className="control-btn" onClick={resetTransform}>⟲</button>
       </div>
 
@@ -533,9 +778,24 @@ function App() {
         color: '#a78bfa',
         fontSize: '0.875rem',
         fontWeight: 500,
-        pointerEvents: 'none'
+        pointerEvents: 'none',
+        zIndex: 100
       }}>
         CodeCanvas Web Prototype • {Math.round(scale * 100)}%
+      </div>
+
+      {/* Main Toolbar */}
+      <div className="main-toolbar">
+        <button className="toolbar-btn primary" onClick={addTextNode} title="Add Text Note">
+          <i className="bi bi-plus-lg"></i>
+        </button>
+        <div className="toolbar-divider"></div>
+        <button className="toolbar-btn" title="Add File (Coming Soon)">
+          <i className="bi bi-file-earmark-plus"></i>
+        </button>
+        <button className="toolbar-btn" title="Connection Settings">
+          <i className="bi bi-share"></i>
+        </button>
       </div>
     </div>
   );
