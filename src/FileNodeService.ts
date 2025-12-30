@@ -1,8 +1,4 @@
-export interface FileNodeState {
-    isDirty: boolean;
-    hasWritePermission: boolean;
-    handle: FileSystemFileHandle | null;
-}
+
 
 export const FileNodeService = {
     /**

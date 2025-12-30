@@ -86,15 +86,7 @@ body {
 }
 
 /* SVG Connection Layer */
-.canvas-svg-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 20000px;
-  height: 20000px;
-  pointer-events: none;
-  z-index: 1;
-}
+
 
 /* Node Styling */
 .canvas-node {
@@ -119,6 +111,38 @@ body {
 .canvas-node.selected {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 1px var(--accent-primary), 0 10px 40px rgba(139, 92, 246, 0.2);
+}
+
+.node-side-handle {
+  width: 10px;
+  height: 10px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%) scale(0);
+  cursor: crosshair;
+  z-index: 10;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 0 0 2px rgba(13, 17, 23, 0.8);
+}
+
+.canvas-node:hover .node-side-handle {
+  transform: translateY(-50%) scale(1);
+}
+
+.node-side-handle.left {
+  left: -5px;
+}
+
+.node-side-handle.right {
+  right: -5px;
+}
+
+.node-side-handle:hover {
+  transform: translateY(-50%) scale(1.5);
+  background: #fff;
+  box-shadow: 0 0 10px var(--accent-primary);
 }
 
 .node-header {

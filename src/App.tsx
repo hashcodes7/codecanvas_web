@@ -2,43 +2,26 @@ import React, { useState, useRef, useEffect } from 'react';
 import './index.css';
 import { FileStorage } from './storage';
 import { FileNodeService } from './FileNodeService';
+import type { NodeData, Connection } from './types';
+import { INITIAL_NODES, STORAGE_KEYS } from './constants';
+import { getPathData } from './utils/canvasUtils';
+import { getLanguageFromFilename } from './utils/fileUtils';
+import { activateSymbols, addGenericHandlesToCode } from './utils/codeUtils';
 
-interface NodeData {
-  id: string;
-  title: string;
-  type: 'file' | 'code' | 'text';
-  content?: string;
-  uri?: string;
-  x: number;
-  y: number;
-  width?: number;
-  height?: number;
-  isEditing?: boolean;
-  hasWritePermission?: boolean;
-}
 
-const INITIAL_NODES: NodeData[] = [
 
-];
-
-interface Connection {
-  id: string;
-  source: { nodeId: string; handleId: string };
-  target: { nodeId: string; handleId: string };
-  type: 'line' | 'arrow' | 'bi-arrow';
-  style?: {
-    color?: string;
-    width?: number;
-  };
-}
-
-const STORAGE_KEYS = {
-  NODES: 'codecanvas-nodes',
-  CONNECTIONS: 'codecanvas-connections',
-  TRANSFORM: 'codecanvas-transform'
-};
 
 function App() {
+  const getNodeStatus = (node: NodeData) => {
+    if (node.isDirty) {
+      return { icon: 'bi-three-dots', text: 'Saving...', color: '#fbbf24', animate: true };
+    }
+    if (node.type === 'file' && !node.hasWritePermission) {
+      return { icon: 'bi-lock', text: 'Read-only', color: '#9ca3af', animate: false };
+    }
+    return { icon: 'bi-check2', text: 'Saved', color: '#4ade80', animate: false };
+  };
+
   // Initialize state from local storage or defaults
   const [nodes, setNodes] = useState<NodeData[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.NODES);
@@ -111,7 +94,7 @@ function App() {
       // Save file contents to IndexedDB
       await Promise.all(
         nodes.map(async (node) => {
-          if ((node.type === 'file' || node.type === 'text') && node.content) {
+          if ((node.type === 'file' || node.type === 'text') && node.content && node.isDirty) {
             await FileStorage.saveFileContent(node.id, node.content);
 
             // If it's a file with write permission, auto-save to disk
@@ -126,13 +109,17 @@ function App() {
       );
 
       // Clean nodes for localStorage: remove content from file type nodes
+      // Also clear isDirty flag since we just saved
       const persistentNodes = nodes.map(node => {
         if (node.type === 'file') {
           const { content, ...rest } = node;
-          return rest;
+          return { ...rest, isDirty: false };
         }
-        return node;
+        return { ...node, isDirty: false };
       });
+
+      // Update state to reflect saved status
+      setNodes(prev => prev.map(n => ({ ...n, isDirty: false })));
 
       localStorage.setItem(STORAGE_KEYS.NODES, JSON.stringify(persistentNodes));
       localStorage.setItem(STORAGE_KEYS.CONNECTIONS, JSON.stringify(connections));
@@ -472,80 +459,7 @@ function App() {
     }
   };
 
-  const getLanguageFromFilename = (filename: string) => {
-    const ext = filename.split('.').pop()?.toLowerCase();
-    switch (ext) {
-      case 'ts': return 'typescript';
-      case 'tsx': return 'tsx';
-      case 'js':
-      case 'jsx': return 'javascript';
-      case 'html': return 'markup';
-      case 'css': return 'css';
-      case 'json': return 'json';
-      case 'py': return 'python';
-      case ' rust':
-      case 'rs': return 'rust';
-      case 'go': return 'go';
-      case 'java': return 'java';
-      case 'cpp':
-      case 'c': return 'cpp';
-      default: return 'javascript';
-    }
-  };
 
-  const activateSymbols = (editorElement: HTMLElement) => {
-    const tokens = editorElement.querySelectorAll('.token');
-    tokens.forEach((token: any, index) => {
-      const name = token.innerText.trim();
-      if (!name) return;
-      if (/^[\(\)\[\]\{\}:;,.\/\|\s\\!?"']+$/.test(name)) return;
-      token.dataset.handleId = `token-${name}-${index}`;
-    });
-  };
-
-  const addGenericHandlesToCode = (editorElement: HTMLElement) => {
-    const walker = document.createTreeWalker(editorElement, NodeFilter.SHOW_TEXT, null);
-    const nodesToReplace: Text[] = [];
-    let textNode;
-    while (textNode = walker.nextNode() as Text) {
-      if (!textNode.parentElement?.closest('[data-handle-id]') && textNode.textContent?.trim()) {
-        nodesToReplace.push(textNode);
-      }
-    }
-
-    const tokenRegex = /(https?:\/\/[^\s\(\)\[\]\{\}:;,"'<>]+)|([\(\)\[\]\{\}:;,.\/\|\s\\!?"']+)|([^\(\)\[\]\{\}:;,.\/\|\s\\!?"']+)/gi;
-
-    nodesToReplace.forEach((textNode, textNodeIndex) => {
-      const content = textNode.textContent || '';
-      const container = document.createElement('span');
-      let html = '';
-
-      let match;
-      tokenRegex.lastIndex = 0;
-      let tokenIndex = 0;
-
-      while ((match = tokenRegex.exec(content)) !== null) {
-        const [_, url, sep, word] = match;
-        if (url) {
-          html += `<span class="word-handle" data-handle-id="url-${textNodeIndex}-${tokenIndex}">${url}</span>`;
-        } else if (sep) {
-          html += sep;
-        } else if (word) {
-          html += `<span class="word-handle" data-handle-id="word-${word}-${textNodeIndex}-${tokenIndex}">${word}</span>`;
-        }
-        tokenIndex++;
-      }
-
-      if (html) {
-        container.innerHTML = html;
-        const fragment = document.createDocumentFragment();
-        while (container.firstChild) {
-          fragment.appendChild(container.firstChild);
-        }
-        textNode.replaceWith(fragment);
-      }
-    });
-  };
 
   React.useEffect(() => {
     if ((window as any).Prism) {
@@ -560,24 +474,7 @@ function App() {
     }
   }, [nodes]);
 
-  // Helper to calculate a path between two points with automatic arrowhead alignment
-  const getPathData = (x1: number, y1: number, x2: number, y2: number) => {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
 
-    // Improved Bezier routing:
-    // If nodes are far horizontally, emphasize horizontal flow.
-    // If vertical offset is high, allow more vertical curvature to fix arrow alignment.
-    const curvature = 0.5;
-    const vBias = Math.abs(dy) > Math.abs(dx) ? 0.2 : 0;
-
-    const cx1 = x1 + dx * curvature;
-    const cy1 = y1 + dy * vBias;
-    const cx2 = x2 - dx * curvature;
-    const cy2 = y2 - dy * vBias;
-
-    return `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
-  };
 
   return (
     <div
@@ -620,10 +517,30 @@ function App() {
                 {node.type === 'text' && <i className="bi bi-sticky" style={{ marginRight: '8px', color: '#fcd34d' }}></i>}
                 <span className="node-title">{node.title}</span>
               </div>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ff5f56' }} />
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ffbd2e' }} />
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#27c93f' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {(() => {
+                  const status = getNodeStatus(node);
+                  return (
+                    <>
+                      <span style={{
+                        fontSize: '0.75rem',
+                        color: status.color,
+                        fontWeight: 500,
+                        opacity: 0.8
+                      }}>
+                        {status.text}
+                      </span>
+                      <i
+                        className={`bi ${status.icon} ${status.animate ? 'animate-pulse' : ''}`}
+                        style={{
+                          color: status.color,
+                          fontSize: '1rem',
+                          animation: status.animate ? 'pulse 1.5s infinite' : 'none'
+                        }}
+                      />
+                    </>
+                  );
+                })()}
               </div>
             </div>
             <div className="node-content">
@@ -634,7 +551,7 @@ function App() {
                   value={node.content}
                   onChange={(e) => {
                     setNodes(prev => prev.map(n =>
-                      n.id === node.id ? { ...n, content: e.target.value } : n
+                      n.id === node.id ? { ...n, content: e.target.value, isDirty: true } : n
                     ));
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
@@ -654,7 +571,7 @@ function App() {
                           value={node.content}
                           onChange={(e) => {
                             setNodes(prev => prev.map(n =>
-                              n.id === node.id ? { ...n, content: e.target.value } : n
+                              n.id === node.id ? { ...n, content: e.target.value, isDirty: true } : n
                             ));
                           }}
                           onPointerDown={(e) => e.stopPropagation()}
