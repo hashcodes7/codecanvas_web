@@ -60,6 +60,7 @@ function App() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const draggingNodeId = useRef<string | null>(null);
+  const resizingNodeRef = useRef<{ id: string, startX: number, startY: number, startW: number, startH: number } | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
 
   // Touch gestures state
@@ -262,6 +263,24 @@ function App() {
   // Zoom logic
 
 
+  const handleResizeStart = (id: string, e: React.PointerEvent) => {
+    e.stopPropagation();
+    const node = document.getElementById(id);
+    if (!node) return;
+
+    resizingNodeRef.current = {
+      id,
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: node.offsetWidth,
+      startH: node.offsetHeight
+    };
+
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (e) { console.warn('Failed to capture pointer'); }
+  };
+
   const handlePointerDown = (e: React.PointerEvent) => {
     const target = e.target as HTMLElement;
     const handle = target.closest('[data-handle-id]');
@@ -313,6 +332,20 @@ function App() {
       const dy = e.clientY - lastMousePos.current.y;
       setOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
       lastMousePos.current = { x: e.clientX, y: e.clientY };
+    } else if (resizingNodeRef.current) {
+      const { id, startX, startY, startW, startH } = resizingNodeRef.current;
+      const deltaX = (e.clientX - startX) / scale;
+      const deltaY = (e.clientY - startY) / scale;
+
+      setNodes(prev => prev.map(node =>
+        node.id === id
+          ? {
+            ...node,
+            width: Math.max(200, startW + deltaX),
+            height: Math.max(100, startH + deltaY)
+          }
+          : node
+      ));
     } else if (draggingNodeId.current) {
       const dx = (e.clientX - lastMousePos.current.x) / scale;
       const dy = (e.clientY - lastMousePos.current.y) / scale;
@@ -351,6 +384,7 @@ function App() {
 
     setIsPanning(false);
     draggingNodeId.current = null;
+    resizingNodeRef.current = null;
     try {
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     } catch (err) { }
@@ -655,7 +689,9 @@ function App() {
               left: node.x,
               top: node.y,
               width: node.width,
-              height: node.height
+              height: node.height,
+              maxWidth: node.width ? 'none' : undefined,
+              maxHeight: node.height ? 'none' : undefined
             }}
             onPointerDown={() => setSelectedNodeId(node.id)}
           >
@@ -713,23 +749,13 @@ function App() {
                 ) : (
                   <pre
                     className="text-node-content code-editor"
-                    style={{
-                      whiteSpace: 'pre-wrap',
-                      fontFamily: 'inherit',
-                      margin: 0,
-                      height: '100%',
-                      overflow: 'auto',
-                      outline: 'none',
-                      padding: '12px',
-                      color: '#e2e8f0'
-                    }}
                     onDoubleClick={() => setNodes(prev => prev.map(n => n.id === node.id ? { ...n, isEditing: true } : n))}
                   >
                     {node.content || 'Double-click to edit'}
                   </pre>
                 )
               ) : (
-                <div style={{ display: 'flex' }}>
+                <div style={{ display: 'flex', flex: 1, minWidth: 0 }}>
                   {node.content ? (
                     <>
                       <div className="line-numbers">
@@ -753,10 +779,6 @@ function App() {
                       ) : (
                         <pre
                           className={`code-editor language-${getLanguageFromFilename(node.title)}`}
-                          style={{
-                            cursor: 'default', // Force pointer to avoid I-beam
-                            userSelect: 'none'  // Prevent native selection to prioritize handles
-                          }}
                           onDoubleClick={() => {
                             // Only allow edit if write permission/loaded
                             if (node.content) {
@@ -833,10 +855,15 @@ function App() {
                 <div className="handle handle-bottom-2" data-handle-id="bottom-2"></div>
               </>
             )}
+
+            <div
+              className="resize-handle"
+              onPointerDown={(e) => handleResizeStart(node.id, e)}
+            />
           </div>
         ))}
 
-        <svg className="canvas-svg-layer">
+        <svg className="canvas-svg-layer" viewBox="-50000 -50000 100000 100000">
           <defs>
             <marker
               id="arrowhead"

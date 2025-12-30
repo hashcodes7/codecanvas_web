@@ -102,6 +102,13 @@ body {
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
   z-index: 2;
   user-select: none;
+  /* Auto-sizing Logic: 
+     Default to fit content but constrained 
+     If width/height logic is applied via inline styles, it overrides this. 
+  */
+  width: fit-content;
+  max-width: 600px;
+  max-height: 500px;
 }
 
 .canvas-node:hover {
@@ -111,6 +118,25 @@ body {
 .canvas-node.selected {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 1px var(--accent-primary), 0 10px 40px rgba(139, 92, 246, 0.2);
+}
+
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 15px;
+  height: 15px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, var(--accent-primary) 50%);
+  border-bottom-right-radius: 12px;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.canvas-node:hover .resize-handle,
+.canvas-node.selected .resize-handle {
+  opacity: 1;
 }
 
 .handle {
@@ -240,39 +266,52 @@ body {
   padding: 16px;
   font-family: var(--font-mono);
   font-size: 13px;
-  color: var(--text-secondary);
+  line-height: 1.6;
+  color: var(--text-primary);
   overflow: hidden;
-  max-height: 400px;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+.node-content pre,
+.node-content textarea,
+.node-content code {
+  font-family: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
 }
 
 .node-content pre {
-  margin: 0;
-  padding: 0;
-  overflow-x: auto;
-  overflow-y: auto;
+  overflow: auto;
   flex: 1;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  /* Ensure URLs/long words wrap */
+  word-break: break-word;
+  cursor: default;
+  user-select: none;
+}
+
+.code-editor-textarea,
+.text-node-input {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  color: var(--text-primary);
+  resize: none;
+  flex: 1;
+  display: block;
 }
 
 .node-content code {
-  font-family: var(--font-mono);
-}
-
-.code-editor-textarea {
-  width: 100%;
-  height: 100%;
-  min-height: 200px;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.5;
-  resize: none;
-  padding: 0;
-  outline: none;
-  flex: 1;
+  color: inherit;
+  display: block;
 }
 
 /* Prism Overrides */
@@ -432,12 +471,13 @@ body {
 /* Connections Layer */
 .canvas-svg-layer {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 20000px;
-  height: 20000px;
+  top: -50000px;
+  left: -50000px;
+  width: 100000px;
+  height: 100000px;
   pointer-events: none;
   z-index: 3;
+  overflow: visible;
 }
 
 .connection-path {
