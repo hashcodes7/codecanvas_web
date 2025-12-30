@@ -485,8 +485,15 @@ body {
   stroke: var(--accent-primary);
   stroke-width: 2px;
   stroke-linecap: round;
-  transition: stroke 0.2s ease;
+  transition: all 0.2s ease;
   z-index: 3;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.connection-path:hover {
+  stroke: #fff;
+  stroke-width: 4px;
 }
 
 .connection-path.selected {
@@ -554,11 +561,59 @@ body {
   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
 }
 
+.toolbar-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
 .toolbar-divider {
   width: 1px;
   height: 24px;
   background: rgba(255, 255, 255, 0.1);
   margin: 0 4px;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.color-swatch-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.color-swatch-btn:hover {
+  transform: scale(1.2);
+  border-color: #fff;
+}
+
+.toolbar-select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  outline: none;
+  cursor: pointer;
+}
+
+.toolbar-select:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.toolbar-select option {
+  background: #1e1e24;
+  color: #fff;
 }
 
 /* Text Node Specifics */

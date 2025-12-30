@@ -47,6 +47,7 @@ function App() {
 
   const [isPanning, setIsPanning] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [linkingState, setLinkingState] = useState<{
     sourceNodeId: string;
     sourceHandleId: string;
@@ -285,6 +286,12 @@ function App() {
     const target = e.target as HTMLElement;
     const handle = target.closest('[data-handle-id]');
 
+    // Clear selections if clicking background
+    if (target.classList.contains('canvas-background')) {
+      setSelectedNodeId(null);
+      setSelectedConnectionId(null);
+    }
+
     if (handle) {
       e.stopPropagation();
       const nodeEl = target.closest('.canvas-node');
@@ -394,8 +401,38 @@ function App() {
     e.stopPropagation();
     draggingNodeId.current = id;
     setSelectedNodeId(id);
+    setSelectedConnectionId(null); // Clear connection selection when a node is selected
     lastMousePos.current = { x: e.clientX, y: e.clientY };
   };
+
+  const deleteSelected = () => {
+    if (selectedNodeId) {
+      setNodes(prev => prev.filter(n => n.id !== selectedNodeId));
+      setConnections(prev => prev.filter(c => c.source.nodeId !== selectedNodeId && c.target.nodeId !== selectedNodeId));
+      setSelectedNodeId(null);
+    } else if (selectedConnectionId) {
+      setConnections(prev => prev.filter(c => c.id !== selectedConnectionId));
+      setSelectedConnectionId(null);
+    }
+  };
+
+  const updateConnectionStyle = (id: string, style: Partial<{ color: string, width: number }>) => {
+    setConnections(prev => prev.map(c =>
+      c.id === id ? { ...c, style: { ...c.style, ...style } } : c
+    ));
+  };
+
+  const PASTEL_COLORS = [
+    { name: 'Default', value: 'var(--accent-primary)' },
+    { name: 'Pink', value: '#ffb7b2' },
+    { name: 'Orange', value: '#ffdac1' },
+    { name: 'Yellow', value: '#fff9b1' },
+    { name: 'Green', value: '#baffc9' },
+    { name: 'Blue', value: '#bae1ff' },
+    { name: 'Purple', value: '#e0bbe4' },
+  ];
+
+  const THICKNESS_OPTIONS = [1, 2, 4, 6, 8];
 
   const resetTransform = () => {
     setScale(1);
@@ -881,13 +918,23 @@ function App() {
           {connections.map(conn => {
             const start = getHandleCanvasPos(conn.source.nodeId, conn.source.handleId);
             const end = getHandleCanvasPos(conn.target.nodeId, conn.target.handleId);
+            const isSelected = selectedConnectionId === conn.id;
             return (
               <path
                 key={conn.id}
                 d={getPathData(start.x, start.y, end.x, end.y)}
-                className="connection-path"
+                className={`connection-path ${isSelected ? 'selected' : ''}`}
+                style={{
+                  stroke: conn.style?.color || 'var(--accent-primary)',
+                  strokeWidth: isSelected ? (conn.style?.width || 2) + 2 : (conn.style?.width || 2)
+                }}
                 markerEnd={conn.type === 'arrow' || conn.type === 'bi-arrow' ? "url(#arrowhead)" : ""}
                 markerStart={conn.type === 'bi-arrow' ? "url(#arrowhead)" : ""}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  setSelectedConnectionId(conn.id);
+                  setSelectedNodeId(null);
+                }}
               />
             );
           })}
@@ -934,6 +981,47 @@ function App() {
         <button className="toolbar-btn" title="Add File (Coming Soon)">
           <i className="bi bi-file-earmark-plus"></i>
         </button>
+
+        {selectedConnectionId && (
+          <>
+            <div className="toolbar-divider"></div>
+            <div className="toolbar-group">
+              {PASTEL_COLORS.map(color => (
+                <button
+                  key={color.value}
+                  className="color-swatch-btn"
+                  style={{ backgroundColor: color.value === 'var(--accent-primary)' ? '#8b5cf6' : color.value }}
+                  onClick={() => updateConnectionStyle(selectedConnectionId, { color: color.value })}
+                  title={color.name}
+                />
+              ))}
+            </div>
+            <div className="toolbar-divider"></div>
+            <div className="toolbar-group">
+              <i className="bi bi-border-width" style={{ color: '#94a3b8', marginRight: '8px' }}></i>
+              <select
+                className="toolbar-select"
+                onChange={(e) => updateConnectionStyle(selectedConnectionId, { width: Number(e.target.value) })}
+                value={connections.find(c => c.id === selectedConnectionId)?.style?.width || 2}
+              >
+                {THICKNESS_OPTIONS.map(w => (
+                  <option key={w} value={w}>{w}px</option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+
+        {(selectedNodeId || selectedConnectionId) && (
+          <>
+            <div className="toolbar-divider"></div>
+            <button className="toolbar-btn danger" onClick={deleteSelected} title="Delete Selected">
+              <i className="bi bi-trash"></i>
+            </button>
+          </>
+        )}
+
+        <div className="toolbar-divider"></div>
         <button className="toolbar-btn" title="Connection Settings">
           <i className="bi bi-share"></i>
         </button>
