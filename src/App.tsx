@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import './index.css';
 import { FileStorage } from './storage';
 import { FileNodeService } from './FileNodeService';
@@ -8,11 +8,71 @@ import { getPathData } from './utils/canvasUtils';
 import { getLanguageFromFilename } from './utils/fileUtils';
 import { activateSymbols, addGenericHandlesToCode } from './utils/codeUtils';
 
+const ConnectionLine = memo(({
+  conn,
+  isSelected,
+  startX,
+  startY,
+  endX,
+  endY,
+  onSelect
+}: {
+  conn: Connection,
+  isSelected: boolean,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  onSelect: (id: string) => void
+}) => {
+  return (
+    <path
+      id={`path-${conn.id}`}
+      d={getPathData(startX, startY, endX, endY)}
+      className={`connection-path ${isSelected ? 'selected' : ''}`}
+      style={{
+        stroke: conn.style?.color || 'var(--accent-primary)',
+        strokeWidth: isSelected ? (conn.style?.width || 2) + 2 : (conn.style?.width || 2)
+      }}
+      markerEnd={conn.type === 'arrow' || conn.type === 'bi-arrow' ? "url(#arrowhead)" : ""}
+      markerStart={conn.type === 'bi-arrow' ? "url(#arrowhead-start)" : ""}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        onSelect(conn.id);
+      }}
+    />
+  );
+});
 
+const CanvasNode = memo(({
+  node,
+  isSelected,
+  onPointerDown,
+  onHeaderPointerDown,
+  onResizePointerDown,
+  onContentChange,
+  onToggleEditing,
+  onSync,
+  onRequestPermission,
+  onSave,
+  updateHandleOffsets
+}: {
+  node: NodeData,
+  isSelected: boolean,
+  onPointerDown: (id: string) => void,
+  onHeaderPointerDown: (id: string, e: React.PointerEvent) => void,
+  onResizePointerDown: (id: string, e: React.PointerEvent) => void,
+  onContentChange: (id: string, content: string) => void,
+  onToggleEditing: (id: string, editing: boolean) => void,
+  onSync: (id: string) => void,
+  onRequestPermission: (id: string) => void,
+  onSave: (id: string, content: string) => void,
+  updateHandleOffsets: () => void
+}) => {
+  const codeRef = useRef<HTMLPreElement>(null);
 
-
-function App() {
-  const getNodeStatus = (node: NodeData) => {
+  // Localized status logic to prevent object creation in parent
+  const status = useMemo(() => {
     if (node.isDirty) {
       return { icon: 'bi-three-dots', text: 'Saving...', color: '#fbbf24', animate: true };
     }
@@ -20,7 +80,200 @@ function App() {
       return { icon: 'bi-lock', text: 'Read-only', color: '#9ca3af', animate: false };
     }
     return { icon: 'bi-check2', text: 'Saved', color: '#4ade80', animate: false };
-  };
+  }, [node.isDirty, node.type, node.hasWritePermission]);
+
+  useEffect(() => {
+    if (codeRef.current && (window as any).Prism && !node.isEditing) {
+      const el = codeRef.current;
+      const code = el.querySelector('code');
+      if (code && node.content) {
+        (window as any).Prism.highlightElement(code);
+
+        // Apply handles after highlighting
+        activateSymbols(el);
+        addGenericHandlesToCode(el);
+        updateHandleOffsets();
+      } else if (node.type === 'text') {
+        activateSymbols(el);
+        addGenericHandlesToCode(el);
+        updateHandleOffsets();
+      }
+    }
+  }, [node.content, node.isEditing, node.type, updateHandleOffsets]);
+
+  return (
+    <div
+      id={node.id}
+      className={`canvas-node ${isSelected ? 'selected' : ''} ${node.type}-node`}
+      style={{
+        left: node.x,
+        top: node.y,
+        width: node.width,
+        height: node.height,
+        maxWidth: node.width ? 'none' : undefined,
+        maxHeight: node.height ? 'none' : undefined,
+        transform: 'translate3d(0,0,0)', // Force GPU layer
+        willChange: 'transform, width, height'
+      }}
+      onPointerDown={() => onPointerDown(node.id)}
+    >
+      <div
+        className="node-header"
+        onPointerDown={(e) => onHeaderPointerDown(node.id, e)}
+      >
+        <div className="node-title-container">
+          {node.type === 'file' && <i className="bi bi-file-earmark-code" style={{ marginRight: '8px', color: '#a78bfa' }}></i>}
+          {node.type === 'text' && <i className="bi bi-sticky" style={{ marginRight: '8px', color: '#fcd34d' }}></i>}
+          <span className="node-title">{node.title}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{
+            fontSize: '0.75rem',
+            color: status.color,
+            fontWeight: 500,
+            opacity: 0.8
+          }}>
+            {status.text}
+          </span>
+          <i
+            className={`bi ${status.icon} ${status.animate ? 'animate-pulse' : ''}`}
+            style={{
+              color: status.color,
+              fontSize: '1rem',
+              animation: status.animate ? 'pulse 1.5s infinite' : 'none'
+            }}
+          />
+        </div>
+      </div>
+      <div className="node-content">
+        {node.type === 'text' ? (
+          node.isEditing ? (
+            <textarea
+              className="text-node-input"
+              placeholder="Type something..."
+              value={node.content}
+              onChange={(e) => onContentChange(node.id, e.target.value)}
+              onPointerDown={(e) => e.stopPropagation()}
+              autoFocus
+              onBlur={() => onToggleEditing(node.id, false)}
+            />
+          ) : (
+            <pre
+              ref={codeRef}
+              className="text-node-content code-editor"
+              onDoubleClick={() => onToggleEditing(node.id, true)}
+            >
+              {node.content || 'Double-click to edit'}
+            </pre>
+          )
+        ) : (
+          <div style={{ display: 'flex', flex: 1, minWidth: 0 }}>
+            {node.content !== undefined ? (
+              <>
+                <div className="line-numbers">
+                  {node.content.split('\n').map((_, i) => (
+                    <span key={i}>{i + 1}</span>
+                  ))}
+                </div>
+                {node.isEditing ? (
+                  <textarea
+                    className="code-editor-textarea"
+                    value={node.content}
+                    onChange={(e) => onContentChange(node.id, e.target.value)}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    autoFocus
+                    onBlur={() => onToggleEditing(node.id, false)}
+                  />
+                ) : (
+                  <pre
+                    ref={codeRef}
+                    className={`code-editor language-${getLanguageFromFilename(node.title)}`}
+                    onDoubleClick={() => {
+                      if (node.content !== undefined) {
+                        onToggleEditing(node.id, true);
+                      }
+                    }}
+                  >
+                    <code className={`language-${getLanguageFromFilename(node.title)}`}>
+                      {node.content}
+                    </code>
+                  </pre>
+                )}
+              </>
+            ) : (
+              <div style={{ padding: '20px', color: '#6b7280', fontSize: '0.875rem', textAlign: 'center', width: '100%' }}>
+                <i className="bi bi-cloud-download" style={{ display: 'block', fontSize: '1.5rem', marginBottom: '8px' }}></i>
+                Content not loaded from system
+              </div>
+            )}
+          </div>
+        )}
+        {node.type === 'file' && (
+          <div className="uri-footer">
+            <i className="bi bi-link-45deg"></i>
+            <span className="truncate" title={node.uri}>{node.uri}</span>
+            <button
+              className="sync-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSync(node.id);
+              }}
+              title="Sync with file on disk"
+            >
+              <i className="bi bi-arrow-repeat"></i>
+            </button>
+
+            {!node.hasWritePermission ? (
+              <button
+                className="sync-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRequestPermission(node.id);
+                }}
+                title="Request Edit Permission"
+                style={{ marginLeft: '4px', color: '#94a3b8' }}
+              >
+                <i className="bi bi-pencil"></i>
+              </button>
+            ) : (
+              <button
+                className="sync-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSave(node.id, node.content || '');
+                }}
+                title="Save to Disk"
+                style={{ marginLeft: '4px', color: '#10b981' }}
+              >
+                <i className="bi bi-save"></i>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {node.type === 'file' && (
+        <>
+          <div className="handle handle-left-1" data-handle-id="left-1"></div>
+          <div className="handle handle-left-2" data-handle-id="left-2"></div>
+          <div className="handle handle-right-1" data-handle-id="right-1"></div>
+          <div className="handle handle-right-2" data-handle-id="right-2"></div>
+          <div className="handle handle-top-1" data-handle-id="top-1"></div>
+          <div className="handle handle-top-2" data-handle-id="top-2"></div>
+          <div className="handle handle-bottom-1" data-handle-id="bottom-1"></div>
+          <div className="handle handle-bottom-2" data-handle-id="bottom-2"></div>
+        </>
+      )}
+
+      <div
+        className="resize-handle"
+        onPointerDown={(e) => onResizePointerDown(node.id, e)}
+      />
+    </div>
+  );
+});
+
+function App() {
+
 
   // Initialize state from local storage or defaults
   const [nodes, setNodes] = useState<NodeData[]>(() => {
@@ -59,7 +312,21 @@ function App() {
   const [handleOffsets, setHandleOffsets] = useState<Record<string, { x: number, y: number }>>({});
   const [loadingContent, setLoadingContent] = useState(true);
 
+  // Refs for high-performance transient updates
+  const nodesRef = useRef(nodes);
+  const connectionsRef = useRef(connections);
+  const scaleRef = useRef(scale);
+  const offsetRef = useRef(offset);
+  const handleOffsetsRef = useRef(handleOffsets);
+
+  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+  useEffect(() => { connectionsRef.current = connections; }, [connections]);
+  useEffect(() => { scaleRef.current = scale; }, [scale]);
+  useEffect(() => { offsetRef.current = offset; }, [offset]);
+  useEffect(() => { handleOffsetsRef.current = handleOffsets; }, [handleOffsets]);
+
   const viewportRef = useRef<HTMLDivElement>(null);
+  const transformLayerRef = useRef<HTMLDivElement>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const draggingNodeId = useRef<string | null>(null);
   const resizingNodeRef = useRef<{ id: string, startX: number, startY: number, startW: number, startH: number } | null>(null);
@@ -69,16 +336,61 @@ function App() {
   const lastTouchDistance = useRef<number | null>(null);
   const initialPinchCenter = useRef<{ x: number, y: number } | null>(null);
 
+  const nodesMapRef = useRef<Map<string, NodeData>>(new Map());
+  const connectionsByNodeRef = useRef<Map<string, string[]>>(new Map());
+
+  useEffect(() => {
+    const nMap = new Map();
+    nodes.forEach(n => nMap.set(n.id, n));
+    nodesMapRef.current = nMap;
+
+    const cMap = new Map();
+    connections.forEach(c => {
+      if (!cMap.has(c.source.nodeId)) cMap.set(c.source.nodeId, []);
+      if (!cMap.has(c.target.nodeId)) cMap.set(c.target.nodeId, []);
+      cMap.get(c.source.nodeId).push(c.id);
+      cMap.get(c.target.nodeId).push(c.id);
+    });
+    connectionsByNodeRef.current = cMap;
+  }, [nodes, connections]);
+
+  // Optimized helper to get actual canvas coordinates for a handle
+  const getHandleCanvasPos = useCallback((nodeId: string, handleId: string) => {
+    const node = nodesMapRef.current.get(nodeId);
+    const hOffset = handleOffsetsRef.current[`${nodeId}:${handleId}`];
+
+    if (!node || !hOffset) {
+      return { x: (node?.x || 0) + 150, y: (node?.y || 0) + 100 };
+    }
+
+    return {
+      x: node.x + hOffset.x,
+      y: node.y + hOffset.y
+    };
+  }, []);
+
+  const updateSVGLinesForNode = useCallback((nodeId: string) => {
+    const connIds = connectionsByNodeRef.current.get(nodeId) || [];
+    connIds.forEach(cId => {
+      const conn = connectionsRef.current.find(c => c.id === cId);
+      if (!conn) return;
+      const pathEl = document.getElementById(`path-${conn.id}`);
+      if (pathEl) {
+        const start = getHandleCanvasPos(conn.source.nodeId, conn.source.handleId);
+        const end = getHandleCanvasPos(conn.target.nodeId, conn.target.handleId);
+        pathEl.setAttribute('d', getPathData(start.x, start.y, end.x, end.y));
+      }
+    });
+  }, [getHandleCanvasPos]);
+
   // Load file contents from IndexedDB on mount
   useEffect(() => {
     const loadContents = async () => {
       const updatedNodes = await Promise.all(
-        nodes.map(async (node) => {
+        nodesRef.current.map(async (node) => {
           if (node.type === 'file' && !node.content) {
             const content = await FileStorage.getFileContent(node.id);
-            if (content) {
-              return { ...node, content };
-            }
+            if (content) return { ...node, content };
           }
           return node;
         })
@@ -299,11 +611,15 @@ function App() {
   };
 
   // Calculate handle offsets relative to node top-left
-  const updateHandleOffsets = () => {
+  // Calculate handle offsets relative to node top-left
+  // Optimization: Scan the DOM instead of iterating the 'nodes' array to allow distinct stability.
+  const updateHandleOffsets = useCallback(() => {
     const newOffsets: Record<string, { x: number, y: number }> = {};
-    nodes.forEach(node => {
-      const nodeEl = document.getElementById(node.id);
-      if (!nodeEl) return;
+    const nodeEls = document.querySelectorAll('.canvas-node');
+
+    nodeEls.forEach(nodeEl => {
+      const nodeId = nodeEl.id;
+      if (!nodeId) return;
 
       const nodeRect = nodeEl.getBoundingClientRect();
       const handles = nodeEl.querySelectorAll('[data-handle-id]');
@@ -313,52 +629,14 @@ function App() {
         if (!handleId) return;
 
         const handleRect = handle.getBoundingClientRect();
-        newOffsets[`${node.id}:${handleId}`] = {
+        newOffsets[`${nodeId}:${handleId}`] = {
           x: (handleRect.left + handleRect.width / 2 - nodeRect.left) / scale,
           y: (handleRect.top + handleRect.height / 2 - nodeRect.top) / scale
         };
       });
     });
     setHandleOffsets(newOffsets);
-  };
-
-  // Helper to get actual canvas coordinates for a handle
-  const getHandleCanvasPos = (nodeId: string, handleId: string) => {
-    const node = nodes.find(n => n.id === nodeId);
-    const offset = handleOffsets[`${nodeId}:${handleId}`];
-
-    if (!node || !offset) {
-      // Fallback if not cached yet
-      return { x: (node?.x || 0) + 150, y: (node?.y || 0) + 100 };
-    }
-
-    return {
-      x: node.x + offset.x,
-      y: node.y + offset.y
-    };
-  };
-
-
-  // Zoom logic
-
-
-  const handleResizeStart = (id: string, e: React.PointerEvent) => {
-    e.stopPropagation();
-    const node = document.getElementById(id);
-    if (!node) return;
-
-    resizingNodeRef.current = {
-      id,
-      startX: e.clientX,
-      startY: e.clientY,
-      startW: node.offsetWidth,
-      startH: node.offsetHeight
-    };
-
-    try {
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    } catch (e) { console.warn('Failed to capture pointer'); }
-  };
+  }, [scale]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     const target = e.target as HTMLElement;
@@ -367,7 +645,7 @@ function App() {
     const isConnection = !!target.closest('.connection-path');
     const isUI = !!target.closest('.main-toolbar') || !!target.closest('.canvas-controls') || !!target.closest('.glass-container');
 
-    // Clear selections if clicking the empty canvas (not a node, handle, connection, or UI)
+    // Clear selections if clicking the empty canvas
     if (!isNode && !isHandle && !isConnection && !isUI) {
       setSelectedNodeId(null);
       setSelectedConnectionId(null);
@@ -384,7 +662,6 @@ function App() {
         const rect = viewportRef.current?.getBoundingClientRect();
         if (!rect) return;
 
-        // Use live pos for starting link
         const hPos = getHandleCanvasPos(nodeId, handleId);
         setLinkingState({
           sourceNodeId: nodeId,
@@ -412,42 +689,51 @@ function App() {
 
       setLinkingState(prev => prev ? ({
         ...prev,
-        targetX: (e.clientX - rect.left - offset.x) / scale,
-        targetY: (e.clientY - rect.top - offset.y) / scale
+        targetX: (e.clientX - rect.left - offsetRef.current.x) / scaleRef.current,
+        targetY: (e.clientY - rect.top - offsetRef.current.y) / scaleRef.current
       }) : null);
       return;
     }
 
+    const dx = e.clientX - lastMousePos.current.x;
+    const dy = e.clientY - lastMousePos.current.y;
+
     if (isPanning) {
-      const dx = e.clientX - lastMousePos.current.x;
-      const dy = e.clientY - lastMousePos.current.y;
-      setOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
-      lastMousePos.current = { x: e.clientX, y: e.clientY };
+      offsetRef.current = { x: offsetRef.current.x + dx, y: offsetRef.current.y + dy };
+      if (transformLayerRef.current) {
+        transformLayerRef.current.style.transform = `translate(${offsetRef.current.x}px, ${offsetRef.current.y}px) scale(${scaleRef.current})`;
+      }
     } else if (resizingNodeRef.current) {
       const { id, startX, startY, startW, startH } = resizingNodeRef.current;
-      const deltaX = (e.clientX - startX) / scale;
-      const deltaY = (e.clientY - startY) / scale;
+      const dX = (e.clientX - startX) / scaleRef.current;
+      const dY = (e.clientY - startY) / scaleRef.current;
+      const newW = Math.max(200, startW + dX);
+      const newH = Math.max(100, startH + dY);
 
-      setNodes(prev => prev.map(node =>
-        node.id === id
-          ? {
-            ...node,
-            width: Math.max(200, startW + deltaX),
-            height: Math.max(100, startH + deltaY)
-          }
-          : node
-      ));
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.width = `${newW}px`;
+        el.style.height = `${newH}px`;
+        // Since resize is transient, we don't update lines here yet as handle positions
+        // will move with the node bounds. We'll update on PointerUp.
+      }
     } else if (draggingNodeId.current) {
-      const dx = (e.clientX - lastMousePos.current.x) / scale;
-      const dy = (e.clientY - lastMousePos.current.y) / scale;
+      const dX_canvas = dx / scaleRef.current;
+      const dY_canvas = dy / scaleRef.current;
 
-      setNodes(prev => prev.map(node =>
-        node.id === draggingNodeId.current
-          ? { ...node, x: node.x + dx, y: node.y + dy }
-          : node
-      ));
-      lastMousePos.current = { x: e.clientX, y: e.clientY };
+      const node = nodesMapRef.current.get(draggingNodeId.current);
+      if (node) {
+        node.x += dX_canvas;
+        node.y += dY_canvas;
+        const el = document.getElementById(node.id);
+        if (el) {
+          el.style.left = `${node.x}px`;
+          el.style.top = `${node.y}px`;
+        }
+        updateSVGLinesForNode(node.id);
+      }
     }
+    lastMousePos.current = { x: e.clientX, y: e.clientY };
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -458,8 +744,6 @@ function App() {
 
       if (handle && targetNode && (targetNode.id !== linkingState.sourceNodeId || handle.getAttribute('data-handle-id') !== linkingState.sourceHandleId)) {
         const handleId = handle.getAttribute('data-handle-id')!;
-
-        // Update offsets specifically for this new target node to ensure connection is accurate
         updateHandleOffsets();
 
         const newConnection: Connection = {
@@ -473,13 +757,53 @@ function App() {
       setLinkingState(null);
     }
 
-    setIsPanning(false);
-    draggingNodeId.current = null;
-    resizingNodeRef.current = null;
+    if (isPanning) {
+      setIsPanning(false);
+      setOffset({ ...offsetRef.current });
+    }
+
+    if (draggingNodeId.current) {
+      const id = draggingNodeId.current;
+      draggingNodeId.current = null;
+      setNodes(prev => prev.map(n => n.id === id ? { ...n, x: nodesMapRef.current.get(id)!.x, y: nodesMapRef.current.get(id)!.y } : n));
+    }
+
+    if (resizingNodeRef.current) {
+      const id = resizingNodeRef.current.id;
+      const el = document.getElementById(id);
+      if (el) {
+        const newW = el.offsetWidth;
+        const newH = el.offsetHeight;
+        setNodes(prev => prev.map(n => n.id === id ? { ...n, width: newW, height: newH } : n));
+        updateHandleOffsets();
+      }
+      resizingNodeRef.current = null;
+    }
+
     try {
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     } catch (err) { }
   };
+
+  const handleResizeStart = (id: string, e: React.PointerEvent) => {
+    e.stopPropagation();
+    const node = document.getElementById(id);
+    if (!node) return;
+
+    resizingNodeRef.current = {
+      id,
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: node.offsetWidth,
+      startH: node.offsetHeight
+    };
+
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (err) { }
+  };
+
+
 
   const handleNodeDragStart = (id: string, e: React.PointerEvent) => {
     e.stopPropagation();
@@ -488,6 +812,23 @@ function App() {
     setSelectedConnectionId(null); // Clear connection selection when a node is selected
     lastMousePos.current = { x: e.clientX, y: e.clientY };
   };
+
+  const handleContentChange = useCallback((id: string, content: string) => {
+    setNodes(prev => prev.map(n => n.id === id ? { ...n, content, isDirty: true } : n));
+  }, []);
+
+  const handleToggleEditing = useCallback((id: string, isEditing: boolean) => {
+    setNodes(prev => prev.map(n => n.id === id ? { ...n, isEditing } : n));
+  }, []);
+
+  const handlePointerDownNode = useCallback((id: string) => {
+    setSelectedNodeId(id);
+  }, []);
+
+  // Sync Wrappers
+  const handleSyncNode = useCallback((id: string) => syncNodeFromDisk(id), []);
+  const handleRequestPermission = useCallback((id: string) => requestWritePermission(id), []);
+  const handleSaveNode = useCallback((id: string, content: string) => saveNodeToDisk(id, content), []);
 
   const unlinkNode = (nodeId: string) => {
     setConnections(prev => prev.filter(c => c.source.nodeId !== nodeId && c.target.nodeId !== nodeId));
@@ -588,62 +929,7 @@ function App() {
 
 
 
-  React.useEffect(() => {
-    // Function to apply handles to a specific container
-    const applyHandles = (container: HTMLElement) => {
-      // First, try standard Prism tokens
-      activateSymbols(container);
-      // Then catch anything Prism missed or plain text
-      addGenericHandlesToCode(container);
-    };
-
-    if ((window as any).Prism) {
-      // Highlight Code Blocks
-      document.querySelectorAll('.code-editor code').forEach((codeBlock: any) => {
-        // Force highlight immediately (async callback)
-        (window as any).Prism.highlightElement(codeBlock, false, () => {
-          const preElement = codeBlock.parentElement;
-          if (preElement) applyHandles(preElement);
-          updateHandleOffsets();
-        });
-      });
-
-      // Handle Plain Text Nodes
-      document.querySelectorAll('.text-node-content').forEach((textBlock: any) => {
-        applyHandles(textBlock);
-      });
-
-      // Poll ensures that if Prism is slow or DOM updates lag, we still get handles
-      const pollInterval = setInterval(() => {
-        let appliedCount = 0;
-        document.querySelectorAll('.code-editor').forEach((editor: any) => {
-          // Check if we have handles already
-          if (editor.querySelectorAll('[data-handle-id]').length === 0) {
-            const code = editor.querySelector('code');
-            if (code) {
-              // Re-apply handles if missing
-              applyHandles(editor);
-            }
-          } else {
-            appliedCount++;
-          }
-        });
-
-        if (appliedCount > 0 && appliedCount === document.querySelectorAll('.code-editor').length) {
-          updateHandleOffsets(); // Final position update
-          clearInterval(pollInterval);
-        }
-      }, 500);
-
-      // Timeout safety to clear interval
-      setTimeout(() => clearInterval(pollInterval), 5000);
-    } else {
-      // Fallback if Prism is not present at all
-      document.querySelectorAll('.code-editor').forEach((editor: any) => {
-        applyHandles(editor);
-      });
-    }
-  }, [nodes]);
+  // Removed complex polling/global Prism logic as it's now handled by CanvasNode locally
 
 
 
@@ -795,186 +1081,20 @@ function App() {
         <div className="canvas-background" />
 
         {nodes.map(node => (
-          <div
+          <CanvasNode
             key={node.id}
-            id={node.id}
-            className={`canvas-node ${selectedNodeId === node.id ? 'selected' : ''} ${node.type}-node`}
-            style={{
-              left: node.x,
-              top: node.y,
-              width: node.width,
-              height: node.height,
-              maxWidth: node.width ? 'none' : undefined,
-              maxHeight: node.height ? 'none' : undefined
-            }}
-            onPointerDown={() => setSelectedNodeId(node.id)}
-          >
-            <div
-              className="node-header"
-              onPointerDown={(e) => handleNodeDragStart(node.id, e)}
-            >
-              <div className="node-title-container">
-                {node.type === 'file' && <i className="bi bi-file-earmark-code" style={{ marginRight: '8px', color: '#a78bfa' }}></i>}
-                {node.type === 'text' && <i className="bi bi-sticky" style={{ marginRight: '8px', color: '#fcd34d' }}></i>}
-                <span className="node-title">{node.title}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {(() => {
-                  const status = getNodeStatus(node);
-                  return (
-                    <>
-                      <span style={{
-                        fontSize: '0.75rem',
-                        color: status.color,
-                        fontWeight: 500,
-                        opacity: 0.8
-                      }}>
-                        {status.text}
-                      </span>
-                      <i
-                        className={`bi ${status.icon} ${status.animate ? 'animate-pulse' : ''}`}
-                        style={{
-                          color: status.color,
-                          fontSize: '1rem',
-                          animation: status.animate ? 'pulse 1.5s infinite' : 'none'
-                        }}
-                      />
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-            <div className="node-content">
-              {node.type === 'text' ? (
-                node.isEditing ? (
-                  <textarea
-                    className="text-node-input"
-                    placeholder="Type something..."
-                    value={node.content}
-                    onChange={(e) => {
-                      setNodes(prev => prev.map(n =>
-                        n.id === node.id ? { ...n, content: e.target.value, isDirty: true } : n
-                      ));
-                    }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    autoFocus
-                    onBlur={() => setNodes(prev => prev.map(n => n.id === node.id ? { ...n, isEditing: false } : n))}
-                  />
-                ) : (
-                  <pre
-                    className="text-node-content code-editor"
-                    onDoubleClick={() => setNodes(prev => prev.map(n => n.id === node.id ? { ...n, isEditing: true } : n))}
-                  >
-                    {node.content || 'Double-click to edit'}
-                  </pre>
-                )
-              ) : (
-                <div style={{ display: 'flex', flex: 1, minWidth: 0 }}>
-                  {node.content !== undefined ? (
-                    <>
-                      <div className="line-numbers">
-                        {node.content.split('\n').map((_, i) => (
-                          <span key={i}>{i + 1}</span>
-                        ))}
-                      </div>
-                      {node.isEditing ? (
-                        <textarea
-                          className="code-editor-textarea"
-                          value={node.content}
-                          onChange={(e) => {
-                            setNodes(prev => prev.map(n =>
-                              n.id === node.id ? { ...n, content: e.target.value, isDirty: true } : n
-                            ));
-                          }}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          autoFocus
-                          onBlur={() => setNodes(prev => prev.map(n => n.id === node.id ? { ...n, isEditing: false } : n))}
-                        />
-                      ) : (
-                        <pre
-                          className={`code-editor language-${getLanguageFromFilename(node.title)}`}
-                          onDoubleClick={() => {
-                            // Only allow edit if content is loaded
-                            if (node.content !== undefined) {
-                              setNodes(prev => prev.map(n => n.id === node.id ? { ...n, isEditing: true } : n));
-                            }
-                          }}
-                        >
-                          <code className={`language-${getLanguageFromFilename(node.title)}`}>
-                            {node.content}
-                          </code>
-                        </pre>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{ padding: '20px', color: '#6b7280', fontSize: '0.875rem', textAlign: 'center', width: '100%' }}>
-                      <i className="bi bi-cloud-download" style={{ display: 'block', fontSize: '1.5rem', marginBottom: '8px' }}></i>
-                      Content not loaded from system
-                    </div>
-                  )}
-                </div>
-              )}
-              {node.type === 'file' && (
-                <div className="uri-footer">
-                  <i className="bi bi-link-45deg"></i>
-                  {node.uri}
-                  <button
-                    className="sync-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      syncNodeFromDisk(node.id);
-                    }}
-                    title="Sync with file on disk"
-                  >
-                    <i className="bi bi-arrow-repeat"></i>
-                  </button>
-
-                  {!node.hasWritePermission ? (
-                    <button
-                      className="sync-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        requestWritePermission(node.id);
-                      }}
-                      title="Request Edit Permission"
-                      style={{ marginLeft: '4px', color: '#6b7280' }}
-                    >
-                      <i className="bi bi-pencil"></i>
-                    </button>
-                  ) : (
-                    <button
-                      className="sync-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        saveNodeToDisk(node.id, node.content || '');
-                      }}
-                      title="Save to Disk"
-                      style={{ marginLeft: '4px', color: '#10b981' }}
-                    >
-                      <i className="bi bi-save"></i>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-            {node.type === 'file' && (
-              <>
-                <div className="handle handle-left-1" data-handle-id="left-1"></div>
-                <div className="handle handle-left-2" data-handle-id="left-2"></div>
-                <div className="handle handle-right-1" data-handle-id="right-1"></div>
-                <div className="handle handle-right-2" data-handle-id="right-2"></div>
-                <div className="handle handle-top-1" data-handle-id="top-1"></div>
-                <div className="handle handle-top-2" data-handle-id="top-2"></div>
-                <div className="handle handle-bottom-1" data-handle-id="bottom-1"></div>
-                <div className="handle handle-bottom-2" data-handle-id="bottom-2"></div>
-              </>
-            )}
-
-            <div
-              className="resize-handle"
-              onPointerDown={(e) => handleResizeStart(node.id, e)}
-            />
-          </div>
+            node={node}
+            isSelected={selectedNodeId === node.id}
+            onPointerDown={handlePointerDownNode}
+            onHeaderPointerDown={handleNodeDragStart}
+            onResizePointerDown={handleResizeStart}
+            onContentChange={handleContentChange}
+            onToggleEditing={handleToggleEditing}
+            onSync={handleSyncNode}
+            onRequestPermission={handleRequestPermission}
+            onSave={handleSaveNode}
+            updateHandleOffsets={updateHandleOffsets}
+          />
         ))}
 
         <svg className="canvas-svg-layer" viewBox="-50000 -50000 100000 100000">
@@ -1005,21 +1125,17 @@ function App() {
           {connections.map(conn => {
             const start = getHandleCanvasPos(conn.source.nodeId, conn.source.handleId);
             const end = getHandleCanvasPos(conn.target.nodeId, conn.target.handleId);
-            const isSelected = selectedConnectionId === conn.id;
             return (
-              <path
+              <ConnectionLine
                 key={conn.id}
-                d={getPathData(start.x, start.y, end.x, end.y)}
-                className={`connection-path ${isSelected ? 'selected' : ''}`}
-                style={{
-                  stroke: conn.style?.color || 'var(--accent-primary)',
-                  strokeWidth: isSelected ? (conn.style?.width || 2) + 2 : (conn.style?.width || 2)
-                }}
-                markerEnd={conn.type === 'arrow' || conn.type === 'bi-arrow' ? "url(#arrowhead)" : ""}
-                markerStart={conn.type === 'bi-arrow' ? "url(#arrowhead-start)" : ""}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  setSelectedConnectionId(conn.id);
+                conn={conn}
+                isSelected={selectedConnectionId === conn.id}
+                startX={start.x}
+                startY={start.y}
+                endX={end.x}
+                endY={end.y}
+                onSelect={(id) => {
+                  setSelectedConnectionId(id);
                   setSelectedNodeId(null);
                 }}
               />

@@ -109,6 +109,9 @@ body {
   width: fit-content;
   max-width: 600px;
   max-height: 500px;
+  will-change: transform, width, height;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
 }
 
 .canvas-node:hover {
