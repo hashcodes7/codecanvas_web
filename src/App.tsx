@@ -321,6 +321,9 @@ function App() {
   const [theme, setTheme] = useState<'light' | 'dark' | 'paper'>(() => {
     return (localStorage.getItem('theme') as any) || 'dark';
   });
+  const [syntaxTheme, setSyntaxTheme] = useState<'classic' | 'monokai' | 'nord' | 'solarized' | 'ink'>(() => {
+    return (localStorage.getItem('syntaxTheme') as any) || 'classic';
+  });
   const [showSettings, setShowSettings] = useState(false);
 
   // Refs for high-performance transient updates
@@ -459,21 +462,23 @@ function App() {
     localStorage.setItem('backgroundPattern', backgroundPattern);
     localStorage.setItem('backgroundOpacity', backgroundOpacity.toString());
     localStorage.setItem('theme', theme);
+    localStorage.setItem('syntaxTheme', syntaxTheme);
 
     return () => {
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
     };
-  }, [nodes, connections, scale, offset, loadingContent, backgroundPattern, backgroundOpacity, theme]);
+  }, [nodes, connections, scale, offset, loadingContent, backgroundPattern, backgroundOpacity, theme, syntaxTheme]);
 
   // Apply Theme
   useEffect(() => {
-    const applyTheme = (t: string) => {
+    const applyTheme = (t: string, st: string) => {
       const root = document.documentElement;
       root.setAttribute('data-theme', t);
+      root.setAttribute('data-syntax-theme', st);
     };
 
-    applyTheme(theme);
-  }, [theme]);
+    applyTheme(theme, syntaxTheme);
+  }, [theme, syntaxTheme]);
 
   const deleteSelected = useCallback(() => {
     if (selectedNodeId) {
@@ -1425,6 +1430,54 @@ function App() {
                 >
                   <i className="bi bi-journal-text"></i>
                   Paper
+                </button>
+              </div>
+            </div>
+
+            <div className="toolbar-divider" style={{ margin: '4px 0', width: '100%', height: '1px' }}></div>
+
+            <div className="settings-group">
+              <div className="settings-label">Syntax Theme</div>
+              <div className="settings-row" style={{ flexWrap: 'wrap' }}>
+                <button
+                  className={`settings-item compact ${syntaxTheme === 'classic' ? 'active' : ''}`}
+                  onClick={() => setSyntaxTheme('classic')}
+                  title="Classic CodeCanvas"
+                >
+                  <div className="theme-preview" style={{ background: '#ff79c6', width: '12px', height: '12px', borderRadius: '2px' }}></div>
+                  Classic
+                </button>
+                <button
+                  className={`settings-item compact ${syntaxTheme === 'monokai' ? 'active' : ''}`}
+                  onClick={() => setSyntaxTheme('monokai')}
+                  title="Vibrant Monokai"
+                >
+                  <div className="theme-preview" style={{ background: '#f92672', width: '12px', height: '12px', borderRadius: '2px' }}></div>
+                  Monokai
+                </button>
+                <button
+                  className={`settings-item compact ${syntaxTheme === 'nord' ? 'active' : ''}`}
+                  onClick={() => setSyntaxTheme('nord')}
+                  title="Arctic Nord"
+                >
+                  <div className="theme-preview" style={{ background: '#81a1c1', width: '12px', height: '12px', borderRadius: '2px' }}></div>
+                  Nord
+                </button>
+                <button
+                  className={`settings-item compact ${syntaxTheme === 'solarized' ? 'active' : ''}`}
+                  onClick={() => setSyntaxTheme('solarized')}
+                  title="Solarized Contrast"
+                >
+                  <div className="theme-preview" style={{ background: '#859900', width: '12px', height: '12px', borderRadius: '2px' }}></div>
+                  Solarized
+                </button>
+                <button
+                  className={`settings-item compact ${syntaxTheme === 'ink' ? 'active' : ''}`}
+                  onClick={() => setSyntaxTheme('ink')}
+                  title="Ink-on-Paper"
+                >
+                  <div className="theme-preview" style={{ background: '#433422', width: '12px', height: '12px', borderRadius: '2px' }}></div>
+                  Ink
                 </button>
               </div>
             </div>

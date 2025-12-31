@@ -33,6 +33,16 @@
   line-height: 1.5;
   font-weight: 400;
   color-scheme: dark;
+
+  /* Syntax Highlighting Tokens - Default (CodeCanvas) */
+  --syn-comment: #6272a4;
+  --syn-punctuation: #f8f8f2;
+  --syn-string: #f1fa8c;
+  --syn-keyword: #ff79c6;
+  --syn-function: #50fa7b;
+  --syn-operator: #ffb86c;
+  --syn-property: #bd93f9;
+  --syn-regex: #8be9fd;
 }
 
 [data-theme='light'] {
@@ -85,6 +95,51 @@
   --shadow-ui: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 
   color-scheme: light;
+}
+
+/* Syntax Themes */
+[data-syntax-theme='monokai'] {
+  --syn-comment: #75715e;
+  --syn-punctuation: #f8f8f2;
+  --syn-string: #e6db74;
+  --syn-keyword: #f92672;
+  --syn-function: #a6e22e;
+  --syn-operator: #f8f8f2;
+  --syn-property: #66d9ef;
+  --syn-regex: #fd971f;
+}
+
+[data-syntax-theme='nord'] {
+  --syn-comment: #616e88;
+  --syn-punctuation: #81a1c1;
+  --syn-string: #a3be8c;
+  --syn-keyword: #81a1c1;
+  --syn-function: #88c0d0;
+  --syn-operator: #81a1c1;
+  --syn-property: #d08770;
+  --syn-regex: #ebcb8b;
+}
+
+[data-syntax-theme='solarized'] {
+  --syn-comment: #93a1a1;
+  --syn-punctuation: #586e75;
+  --syn-string: #2aa198;
+  --syn-keyword: #859900;
+  --syn-function: #268bd2;
+  --syn-operator: #657b83;
+  --syn-property: #b58900;
+  --syn-regex: #cb4b16;
+}
+
+[data-syntax-theme='ink'] {
+  --syn-comment: #a39c91;
+  --syn-punctuation: #433422;
+  --syn-string: #228b22;
+  --syn-keyword: #a52a2a;
+  --syn-function: #00008b;
+  --syn-operator: #433422;
+  --syn-property: #8b4513;
+  --syn-regex: #ff4500;
 }
 
 * {
@@ -404,6 +459,74 @@ body {
   background: transparent !important;
   text-shadow: none !important;
   font-family: var(--font-mono) !important;
+  color: var(--text-main);
+}
+
+/* Syntax Token Mapping */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: var(--syn-comment);
+}
+
+.token.punctuation {
+  color: var(--syn-punctuation);
+}
+
+.token.namespace {
+  opacity: .7;
+}
+
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: var(--syn-property);
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: var(--syn-string);
+}
+
+.token.operator,
+.token.entity,
+.token.url {
+  color: var(--syn-operator);
+}
+
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: var(--syn-keyword);
+}
+
+.token.function,
+.token.class-name {
+  color: var(--syn-function);
+}
+
+.token.regex,
+.token.important,
+.token.variable {
+  color: var(--syn-regex);
+}
+
+.token.important,
+.token.bold {
+  font-weight: bold;
+}
+
+.token.italic {
+  font-style: italic;
 }
 
 .uri-footer {
