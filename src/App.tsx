@@ -312,6 +312,16 @@ function App() {
 
   const [handleOffsets, setHandleOffsets] = useState<Record<string, { x: number, y: number }>>({});
   const [loadingContent, setLoadingContent] = useState(true);
+  const [backgroundPattern, setBackgroundPattern] = useState<'grid' | 'dots' | 'lines'>(() => {
+    return (localStorage.getItem('backgroundPattern') as any) || 'grid';
+  });
+  const [backgroundOpacity, setBackgroundOpacity] = useState<number>(() => {
+    return parseFloat(localStorage.getItem('backgroundOpacity') || '0.7');
+  });
+  const [theme, setTheme] = useState<'light' | 'dark' | 'paper'>(() => {
+    return (localStorage.getItem('theme') as any) || 'dark';
+  });
+  const [showSettings, setShowSettings] = useState(false);
 
   // Refs for high-performance transient updates
   const nodesRef = useRef(nodes);
@@ -446,10 +456,24 @@ function App() {
       localStorage.setItem(STORAGE_KEYS.TRANSFORM, JSON.stringify({ scale, offset }));
     }, 2000);
 
+    localStorage.setItem('backgroundPattern', backgroundPattern);
+    localStorage.setItem('backgroundOpacity', backgroundOpacity.toString());
+    localStorage.setItem('theme', theme);
+
     return () => {
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
     };
-  }, [nodes, connections, scale, offset, loadingContent]);
+  }, [nodes, connections, scale, offset, loadingContent, backgroundPattern, backgroundOpacity, theme]);
+
+  // Apply Theme
+  useEffect(() => {
+    const applyTheme = (t: string) => {
+      const root = document.documentElement;
+      root.setAttribute('data-theme', t);
+    };
+
+    applyTheme(theme);
+  }, [theme]);
 
   const deleteSelected = useCallback(() => {
     if (selectedNodeId) {
@@ -696,7 +720,7 @@ function App() {
     const isNode = !!target.closest('.canvas-node');
     const isHandle = !!target.closest('[data-handle-id]');
     const isConnection = !!target.closest('.connection-path');
-    const isUI = !!target.closest('.main-toolbar') || !!target.closest('.canvas-controls') || !!target.closest('.glass-container');
+    const isUI = !!target.closest('.main-toolbar') || !!target.closest('.canvas-controls') || !!target.closest('.glass-container') || !!target.closest('.top-right-controls');
 
     // Clear selections if clicking the empty canvas
     if (!isNode && !isHandle && !isConnection && !isUI) {
@@ -1119,6 +1143,7 @@ function App() {
     <div
       className="canvas-viewport"
       ref={viewportRef}
+      style={{ '--grid-opacity': backgroundOpacity * 0.1 } as any}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -1131,7 +1156,9 @@ function App() {
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`
         }}
       >
-        <div className="canvas-background" />
+        <div className="canvas-background-container" style={{ pointerEvents: 'none' }}>
+          <div className={`canvas-background ${backgroundPattern}`} />
+        </div>
 
         {nodes.map(node => (
           <CanvasNode
@@ -1311,6 +1338,98 @@ function App() {
         <button className="toolbar-btn" title="Connection Settings">
           <i className="bi bi-share"></i>
         </button>
+      </div>
+
+      <div className="top-right-controls" onPointerDown={(e) => e.stopPropagation()} style={{ pointerEvents: 'auto' }}>
+        <button
+          className={`control-btn ${showSettings ? 'active' : ''}`}
+          onClick={() => setShowSettings(!showSettings)}
+          title="Settings"
+          style={{ pointerEvents: 'auto' }}
+        >
+          <i className={`bi ${showSettings ? 'bi-gear-fill' : 'bi-gear'}`}></i>
+        </button>
+
+        {showSettings && (
+          <div className="settings-menu">
+            <div className="settings-group">
+              <div className="settings-label">Background Pattern</div>
+              <div className="settings-row">
+                <button
+                  className={`settings-item compact ${backgroundPattern === 'grid' ? 'active' : ''}`}
+                  onClick={() => setBackgroundPattern('grid')}
+                >
+                  <i className="bi bi-grid-3x3"></i>
+                  Grid
+                </button>
+                <button
+                  className={`settings-item compact ${backgroundPattern === 'dots' ? 'active' : ''}`}
+                  onClick={() => setBackgroundPattern('dots')}
+                >
+                  <i className="bi bi-dot"></i>
+                  Dots
+                </button>
+                <button
+                  className={`settings-item compact ${backgroundPattern === 'lines' ? 'active' : ''}`}
+                  onClick={() => setBackgroundPattern('lines')}
+                >
+                  <i className="bi bi-distribute-vertical"></i>
+                  Lines
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-group">
+              <div className="settings-label">Transparency</div>
+              <div className="settings-slider-container">
+                <input
+                  type="range"
+                  className="settings-slider"
+                  min="0"
+                  max="1.4"
+                  step="0.01"
+                  value={backgroundOpacity}
+                  onChange={(e) => setBackgroundOpacity(parseFloat(e.target.value))}
+                  onPointerDown={(e) => e.stopPropagation()}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#64748b' }}>
+                  <span>Min</span>
+                  <span>{Math.round(backgroundOpacity * 100 / 1.4)}%</span>
+                  <span>Max</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="toolbar-divider" style={{ margin: '4px 0', width: '100%', height: '1px' }}></div>
+
+            <div className="settings-group">
+              <div className="settings-label">Appearance</div>
+              <div className="settings-row">
+                <button
+                  className={`settings-item compact ${theme === 'light' ? 'active' : ''}`}
+                  onClick={() => setTheme('light')}
+                >
+                  <i className="bi bi-sun"></i>
+                  Light
+                </button>
+                <button
+                  className={`settings-item compact ${theme === 'dark' ? 'active' : ''}`}
+                  onClick={() => setTheme('dark')}
+                >
+                  <i className="bi bi-moon-stars"></i>
+                  Dark
+                </button>
+                <button
+                  className={`settings-item compact ${theme === 'paper' ? 'active' : ''}`}
+                  onClick={() => setTheme('paper')}
+                >
+                  <i className="bi bi-journal-text"></i>
+                  Paper
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div >
   );

@@ -5,23 +5,86 @@
   --font-main: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   --font-mono: 'Fira Code', monospace;
 
-  --bg-dark: #0a0a0c;
+  /* Theme Tokens - Dark (Default) */
+  --bg-main: #0a0a0c;
+  --bg-node: rgba(20, 20, 25, 0.7);
+  --bg-ui: rgba(15, 23, 42, 0.6);
+  --bg-ui-hover: rgba(255, 255, 255, 0.1);
   --bg-card: rgba(255, 255, 255, 0.03);
-  --border-glass: rgba(255, 255, 255, 0.08);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.2);
+
+  --text-main: #f8fafc;
+  --text-subtle: #94a3b8;
+  --text-muted: #4b5563;
 
   --accent-primary: #8b5cf6;
   --accent-secondary: #3b82f6;
   --accent-glow: rgba(139, 92, 246, 0.3);
 
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  --shadow-node: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --shadow-ui: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
 
   --grid-size: 40px;
-  --grid-color: rgba(255, 255, 255, 0.03);
+  --grid-opacity: 0.07;
+  --adapter-grid-rgb: 255, 255, 255;
 
   line-height: 1.5;
   font-weight: 400;
   color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --bg-main: #f5f7f9;
+  /* Soft cool off-white for the abyss */
+  --bg-node: #ffffff;
+  /* Contrast white for nodes */
+  --bg-ui: rgba(255, 255, 255, 0.85);
+  /* Frosty UI layer */
+  --bg-ui-hover: rgba(139, 92, 246, 0.08);
+  /* Lavender-tinted hover */
+  --bg-card: #f8fafc;
+
+  --border-subtle: rgba(15, 23, 42, 0.06);
+  --border-medium: rgba(15, 23, 42, 0.1);
+
+  --text-main: #0f172a;
+  --text-subtle: #475569;
+  --text-muted: #94a3b8;
+
+  --adapter-grid-rgb: 0, 0, 0;
+
+  /* Premium soft shadows */
+  --shadow-node: 0 10px 40px -10px rgba(0, 0, 0, 0.1), 0 0 1px rgba(0, 0, 0, 0.05);
+  --shadow-ui: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+
+  color-scheme: light;
+}
+
+[data-theme='paper'] {
+  --bg-main: #f4edd8;
+  /* Warm parchment bg */
+  --bg-node: #fffdf5;
+  /* Bright paper for nodes */
+  --bg-ui: rgba(250, 245, 230, 0.9);
+  /* Opaque warm UI */
+  --bg-ui-hover: rgba(139, 92, 246, 0.1);
+  --bg-card: #fffdf5;
+
+  --border-subtle: rgba(67, 52, 34, 0.1);
+  --border-medium: rgba(67, 52, 34, 0.15);
+
+  --text-main: #433422;
+  /* Ink-like warm brown/gray */
+  --text-subtle: #736b5e;
+  --text-muted: #a39c91;
+
+  --adapter-grid-rgb: 67, 52, 34;
+  --shadow-node: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-ui: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+  color-scheme: light;
 }
 
 * {
@@ -32,11 +95,10 @@
 
 body {
   font-family: var(--font-main);
-  background-color: var(--bg-dark);
-  color: var(--text-primary);
+  background-color: var(--bg-main);
+  color: var(--text-main);
   min-height: 100vh;
   overflow: hidden;
-  /* Prevent body scroll for canvas */
 }
 
 #root {
@@ -48,7 +110,7 @@ body {
 .canvas-viewport {
   width: 100vw;
   height: 100vh;
-  background-color: var(--bg-dark);
+  background-color: var(--bg-main);
   position: relative;
   overflow: hidden;
   touch-action: none;
@@ -70,19 +132,32 @@ body {
   will-change: transform;
 }
 
-/* Background Grid Pattern */
+/* Background Patterns */
 .canvas-background {
   position: absolute;
   top: -10000px;
   left: -10000px;
   width: 20000px;
   height: 20000px;
-  background-image:
-    linear-gradient(var(--grid-color) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-  background-size: var(--grid-size) var(--grid-size);
   pointer-events: none;
   z-index: 0;
+}
+
+.canvas-background.grid {
+  background-image:
+    linear-gradient(rgba(var(--adapter-grid-rgb), var(--grid-opacity)) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--adapter-grid-rgb), var(--grid-opacity)) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+}
+
+.canvas-background.dots {
+  background-image: radial-gradient(rgba(var(--adapter-grid-rgb), var(--grid-opacity)) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+}
+
+.canvas-background.lines {
+  background-image: linear-gradient(rgba(var(--adapter-grid-rgb), var(--grid-opacity)) 1px, transparent 1px);
+  background-size: 100% var(--grid-size);
 }
 
 /* SVG Connection Layer */
@@ -92,11 +167,11 @@ body {
 .canvas-node {
   position: absolute;
   min-width: 300px;
-  background: rgba(20, 20, 25, 0.7);
+  background: var(--bg-node);
   backdrop-filter: blur(20px);
-  border: 1px solid var(--border-glass);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-node);
   display: flex;
   flex-direction: column;
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
@@ -115,7 +190,7 @@ body {
 }
 
 .canvas-node:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-medium);
 }
 
 .canvas-node.selected {
@@ -247,7 +322,7 @@ body {
 
 .node-header {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-glass);
+  border-bottom: 1px solid var(--border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -270,7 +345,7 @@ body {
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.6;
-  color: var(--text-primary);
+  color: var(--text-main);
   overflow: hidden;
   flex: 1;
   display: flex;
@@ -306,7 +381,7 @@ body {
   width: 100%;
   height: 100%;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--text-main);
   resize: none;
   flex: 1;
   display: block;
@@ -334,7 +409,7 @@ body {
 .uri-footer {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--border-glass);
+  border-top: 1px solid var(--border-subtle);
   font-size: 11px;
   color: var(--accent-primary);
   opacity: 0.6;
@@ -409,9 +484,9 @@ body {
   flex-direction: column;
   padding-right: 12px;
   margin-right: 12px;
-  border-right: 1px solid var(--border-glass);
+  border-right: 1px solid var(--border-subtle);
   text-align: right;
-  color: #4b5563;
+  color: var(--text-muted);
   user-select: none;
 }
 
@@ -427,17 +502,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  z-index: 100;
+  z-index: 2000;
 }
 
 .control-btn {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: var(--bg-card);
+  background: var(--bg-ui);
   backdrop-filter: blur(8px);
-  border: 1px solid var(--border-glass);
-  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -446,19 +521,19 @@ body {
 }
 
 .control-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-ui-hover);
   transform: translateY(-2px);
 }
 
 .glass-container {
-  background: var(--bg-card);
+  background: var(--bg-ui);
   backdrop-filter: blur(12px);
-  border: 1px solid var(--border-glass);
+  border: 1px solid var(--border-subtle);
   border-radius: 24px;
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+  background: linear-gradient(135deg, var(--text-main) 0%, var(--text-subtle) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -526,11 +601,11 @@ body {
   gap: 8px;
   padding: 8px;
   border-radius: 20px;
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--bg-ui);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-ui);
+  z-index: 2000;
 }
 
 .toolbar-btn {
@@ -542,21 +617,119 @@ body {
   border-radius: 12px;
   border: none;
   background: transparent;
-  color: #94a3b8;
+  color: var(--text-subtle);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 1.25rem;
+  z-index: 1000;
 }
 
 .toolbar-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--bg-ui-hover);
+  color: var(--text-main);
   transform: translateY(-2px);
 }
 
 .toolbar-btn.primary {
   background: var(--accent-primary);
   color: white;
+}
+
+/* Settings Menu */
+.top-right-controls {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.settings-menu {
+  background: var(--bg-ui);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 8px;
+  min-width: 180px;
+  box-shadow: var(--shadow-ui);
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settings-group {
+  margin-bottom: 12px;
+}
+
+.settings-row {
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px;
+}
+
+.settings-label {
+  font-size: 0.75rem;
+  color: var(--text-subtle);
+  padding: 4px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.settings-item {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-size: 0.875rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.settings-item.compact {
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 4px;
+  text-align: center;
+  justify-content: center;
+  font-size: 0.7rem;
+}
+
+.settings-item.compact i {
+  font-size: 1.25rem;
+}
+
+.settings-item:hover {
+  background: var(--bg-ui-hover);
+  color: var(--text-main);
+}
+
+.settings-item.active {
+  background: rgba(139, 92, 246, 0.2);
+  color: #8b5cf6;
+}
+
+.settings-item i {
+  font-size: 1.1rem;
 }
 
 .toolbar-btn.primary:hover {
@@ -579,7 +752,7 @@ body {
 .toolbar-divider {
   width: 1px;
   height: 24px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border-subtle);
   margin: 0 4px;
 }
 
@@ -654,4 +827,37 @@ body {
 ::selection {
   background: var(--accent-primary);
   color: white;
+}
+
+/* Slider Styling */
+.settings-slider-container {
+  padding: 8px 12px;
+}
+
+.settings-slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  outline: none;
+  margin: 12px 0 8px 0;
+}
+
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
+}
+
+.settings-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #fff;
 }
