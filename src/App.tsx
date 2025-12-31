@@ -285,14 +285,18 @@ function App() {
 
   const handlePointerDown = (e: React.PointerEvent) => {
     const target = e.target as HTMLElement;
-    const handle = target.closest('[data-handle-id]');
+    const isNode = !!target.closest('.canvas-node');
+    const isHandle = !!target.closest('[data-handle-id]');
+    const isConnection = !!target.closest('.connection-path');
+    const isUI = !!target.closest('.main-toolbar') || !!target.closest('.canvas-controls') || !!target.closest('.glass-container');
 
-    // Clear selections if clicking background
-    if (target.classList.contains('canvas-background')) {
+    // Clear selections if clicking the empty canvas (not a node, handle, connection, or UI)
+    if (!isNode && !isHandle && !isConnection && !isUI) {
       setSelectedNodeId(null);
       setSelectedConnectionId(null);
     }
 
+    const handle = target.closest('[data-handle-id]');
     if (handle) {
       e.stopPropagation();
       const nodeEl = target.closest('.canvas-node');
@@ -318,7 +322,9 @@ function App() {
     if (e.button === 0 && !draggingNodeId.current) {
       setIsPanning(true);
       lastMousePos.current = { x: e.clientX, y: e.clientY };
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      try {
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      } catch (err) { console.warn('Failed to capture pointer'); }
     }
   };
 
