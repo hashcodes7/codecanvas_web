@@ -48,6 +48,7 @@ function App() {
   const [isPanning, setIsPanning] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+  const [defaultLineType, setDefaultLineType] = useState<'line' | 'arrow' | 'bi-arrow'>('arrow');
   const [linkingState, setLinkingState] = useState<{
     sourceNodeId: string;
     sourceHandleId: string;
@@ -382,7 +383,7 @@ function App() {
           id: `conn-${Date.now()}`,
           source: { nodeId: linkingState.sourceNodeId, handleId: linkingState.sourceHandleId },
           target: { nodeId: targetNode.id, handleId: handleId },
-          type: 'arrow'
+          type: defaultLineType
         };
         setConnections(prev => [...prev, newConnection]);
       }
@@ -912,6 +913,16 @@ function App() {
             >
               <polygon points="0 0, 10 3.5, 0 7" fill="var(--accent-primary)" />
             </marker>
+            <marker
+              id="arrowhead-start"
+              markerWidth="10"
+              markerHeight="7"
+              refX="1"
+              refY="3.5"
+              orient="auto-start-reverse"
+            >
+              <polygon points="0 0, 10 3.5, 0 7" fill="var(--accent-primary)" />
+            </marker>
           </defs>
 
           {/* Connection Lines */}
@@ -929,7 +940,7 @@ function App() {
                   strokeWidth: isSelected ? (conn.style?.width || 2) + 2 : (conn.style?.width || 2)
                 }}
                 markerEnd={conn.type === 'arrow' || conn.type === 'bi-arrow' ? "url(#arrowhead)" : ""}
-                markerStart={conn.type === 'bi-arrow' ? "url(#arrowhead)" : ""}
+                markerStart={conn.type === 'bi-arrow' ? "url(#arrowhead-start)" : ""}
                 onPointerDown={(e) => {
                   e.stopPropagation();
                   setSelectedConnectionId(conn.id);
@@ -981,6 +992,31 @@ function App() {
         <button className="toolbar-btn" title="Add File (Coming Soon)">
           <i className="bi bi-file-earmark-plus"></i>
         </button>
+
+        <div className="toolbar-divider"></div>
+        <div className="toolbar-group">
+          <button
+            className={`toolbar-btn ${defaultLineType === 'line' ? 'active' : ''}`}
+            onClick={() => setDefaultLineType('line')}
+            title="Non-directional Line"
+          >
+            <i className="bi bi-dash"></i>
+          </button>
+          <button
+            className={`toolbar-btn ${defaultLineType === 'arrow' ? 'active' : ''}`}
+            onClick={() => setDefaultLineType('arrow')}
+            title="Single Arrow"
+          >
+            <i className="bi bi-arrow-right"></i>
+          </button>
+          <button
+            className={`toolbar-btn ${defaultLineType === 'bi-arrow' ? 'active' : ''}`}
+            onClick={() => setDefaultLineType('bi-arrow')}
+            title="Bi-directional Arrow"
+          >
+            <i className="bi bi-arrow-left-right"></i>
+          </button>
+        </div>
 
         {selectedConnectionId && (
           <>
