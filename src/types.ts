@@ -24,3 +24,17 @@ export interface Connection {
         width?: number;
     };
 }
+
+export interface CanvasManifestItem {
+    id: string;
+    name: string;
+    lastModified: string;
+}
+
+export interface CanvasProperties {
+    backgroundPattern: 'grid' | 'dots' | 'lines';
+    backgroundOpacity: number;
+    theme: 'light' | 'dark' | 'paper';
+    syntaxTheme: 'classic' | 'monokai' | 'nord' | 'solarized' | 'ink';
+    transform: { scale: number; offset: { x: number; y: number } };
+}

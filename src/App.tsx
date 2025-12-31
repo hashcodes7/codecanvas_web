@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import './index.css';
-import { FileStorage } from './storage';
+import { FileStorage, ProjectStorage } from './storage';
 import { FileNodeService } from './FileNodeService';
-import type { NodeData, Connection } from './types';
+import type { NodeData, Connection, CanvasManifestItem, CanvasProperties } from './types';
 import { INITIAL_NODES, STORAGE_KEYS } from './constants';
 import { getPathData, computeHandlePositions } from './utils/canvasUtils';
 import { getLanguageFromFilename } from './utils/fileUtils';
@@ -274,30 +274,32 @@ const CanvasNode = memo(({
 });
 
 function App() {
-
-
-  // Initialize state from local storage or defaults
-  const [nodes, setNodes] = useState<NodeData[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.NODES);
-    return saved ? JSON.parse(saved) : INITIAL_NODES;
+  // --- Project System Initialization ---
+  const [currentProjectId, setCurrentProjectId] = useState<string>(() => {
+    return localStorage.getItem(STORAGE_KEYS.CURRENT_PROJECT_ID) || 'project-1';
   });
 
-  const [connections, setConnections] = useState<Connection[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CONNECTIONS);
-    return saved ? JSON.parse(saved) : [];
+  const [manifest, setManifest] = useState<CanvasManifestItem[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.MANIFEST);
+    if (!saved) {
+      const initialManifest = [{ id: 'project-1', name: 'Main Canvas', lastModified: new Date().toISOString() }];
+      localStorage.setItem(STORAGE_KEYS.MANIFEST, JSON.stringify(initialManifest));
+      localStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT_ID, 'project-1');
+      return initialManifest;
+    }
+    return JSON.parse(saved);
   });
 
-  const [scale, setScale] = useState<number>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.TRANSFORM);
-    const parsed = saved ? JSON.parse(saved) : null;
-    return parsed ? parsed.scale : 1;
-  });
+  // --- Core State ---
+  const [nodes, setNodes] = useState<NodeData[]>(INITIAL_NODES);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [scale, setScale] = useState<number>(1);
+  const [offset, setOffset] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
 
-  const [offset, setOffset] = useState<{ x: number, y: number }>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.TRANSFORM);
-    const parsed = saved ? JSON.parse(saved) : null;
-    return parsed ? parsed.offset : { x: 0, y: 0 };
-  });
+  const [backgroundPattern, setBackgroundPattern] = useState<'grid' | 'dots' | 'lines'>('grid');
+  const [backgroundOpacity, setBackgroundOpacity] = useState<number>(0.7);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'paper'>('dark');
+  const [syntaxTheme, setSyntaxTheme] = useState<'classic' | 'monokai' | 'nord' | 'solarized' | 'ink'>('classic');
 
   const [isPanning, setIsPanning] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -312,19 +314,9 @@ function App() {
 
   const [handleOffsets, setHandleOffsets] = useState<Record<string, { x: number, y: number }>>({});
   const [loadingContent, setLoadingContent] = useState(true);
-  const [backgroundPattern, setBackgroundPattern] = useState<'grid' | 'dots' | 'lines'>(() => {
-    return (localStorage.getItem('backgroundPattern') as any) || 'grid';
-  });
-  const [backgroundOpacity, setBackgroundOpacity] = useState<number>(() => {
-    return parseFloat(localStorage.getItem('backgroundOpacity') || '0.7');
-  });
-  const [theme, setTheme] = useState<'light' | 'dark' | 'paper'>(() => {
-    return (localStorage.getItem('theme') as any) || 'dark';
-  });
-  const [syntaxTheme, setSyntaxTheme] = useState<'classic' | 'monokai' | 'nord' | 'solarized' | 'ink'>(() => {
-    return (localStorage.getItem('syntaxTheme') as any) || 'classic';
-  });
   const [showSettings, setShowSettings] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
 
   // Refs for high-performance transient updates
   const nodesRef = useRef(nodes);
@@ -338,6 +330,88 @@ function App() {
   useEffect(() => { scaleRef.current = scale; }, [scale]);
   useEffect(() => { offsetRef.current = offset; }, [offset]);
   useEffect(() => { handleOffsetsRef.current = handleOffsets; }, [handleOffsets]);
+
+  // --- Persistence Logic ---
+
+  // Migration logic inside a one-time effect
+  useEffect(() => {
+    const migrateLegacyData = async () => {
+      const oldNodes = localStorage.getItem('codecanvas-nodes');
+      const oldConns = localStorage.getItem('codecanvas-connections');
+      const oldTransform = localStorage.getItem('codecanvas-transform');
+
+      if (oldNodes || oldConns || oldTransform) {
+        console.log('Migrating legacy data to Project-1...');
+        const m_nodes = oldNodes ? JSON.parse(oldNodes) : [];
+        const m_connections = oldConns ? JSON.parse(oldConns) : [];
+        const m_transform = oldTransform ? JSON.parse(oldTransform) : { scale: 1, offset: { x: 0, y: 0 } };
+
+        // Save to new system
+        await ProjectStorage.saveProjectObjects('project-1', m_nodes, m_connections);
+        const props: CanvasProperties = {
+          backgroundPattern: (localStorage.getItem('backgroundPattern') as any) || 'grid',
+          backgroundOpacity: parseFloat(localStorage.getItem('backgroundOpacity') || '0.7'),
+          theme: (localStorage.getItem('theme') as any) || 'dark',
+          syntaxTheme: (localStorage.getItem('syntaxTheme') as any) || 'classic',
+          transform: m_transform
+        };
+        localStorage.setItem(`${STORAGE_KEYS.PROPS_PREFIX}project-1`, JSON.stringify(props));
+
+        // Clean up legacy keys
+        localStorage.removeItem('codecanvas-nodes');
+        localStorage.removeItem('codecanvas-connections');
+        localStorage.removeItem('codecanvas-transform');
+        localStorage.removeItem('backgroundPattern');
+        localStorage.removeItem('backgroundOpacity');
+        localStorage.removeItem('theme');
+        localStorage.removeItem('syntaxTheme');
+
+        // Trigger reload to pick up new state
+        window.location.reload();
+      }
+    };
+    migrateLegacyData();
+  }, []);
+
+  // Load project data when ID changes
+  useEffect(() => {
+    const loadProject = async () => {
+      setLoadingContent(true);
+
+      // Load Properties from LocalStorage (Fast)
+      const propsStr = localStorage.getItem(`${STORAGE_KEYS.PROPS_PREFIX}${currentProjectId}`);
+      if (propsStr) {
+        const props: CanvasProperties = JSON.parse(propsStr);
+        setBackgroundPattern(props.backgroundPattern);
+        setBackgroundOpacity(props.backgroundOpacity);
+        setTheme(props.theme);
+        setSyntaxTheme(props.syntaxTheme);
+        setScale(props.transform.scale);
+        setOffset(props.transform.offset);
+      } else {
+        // Fallback for first run of project-1 if migration didn't happen
+        setBackgroundPattern('grid');
+        setBackgroundOpacity(0.7);
+        setTheme('dark');
+        setSyntaxTheme('classic');
+        setScale(1);
+        setOffset({ x: 0, y: 0 });
+      }
+
+      // Load Heavy Objects from IndexedDB
+      const objects = await ProjectStorage.getProjectObjects(currentProjectId);
+      if (objects) {
+        setNodes(objects.nodes);
+        setConnections(objects.connections);
+      } else {
+        setNodes(INITIAL_NODES);
+        setConnections([]);
+      }
+
+      setLoadingContent(false);
+    };
+    loadProject();
+  }, [currentProjectId]);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const transformLayerRef = useRef<HTMLDivElement>(null);
@@ -441,8 +515,7 @@ function App() {
         })
       );
 
-      // Clean nodes for localStorage: remove content from file type nodes
-      // Also clear isDirty flag since we just saved
+      // Save Objects to IndexedDB (Optimized for scale)
       const persistentNodes = nodes.map(node => {
         if (node.type === 'file') {
           const { content, ...rest } = node;
@@ -451,23 +524,35 @@ function App() {
         return { ...node, isDirty: false };
       });
 
+      await ProjectStorage.saveProjectObjects(currentProjectId, persistentNodes, connections);
+
       // Update state to reflect saved status
       setNodes(prev => prev.map(n => ({ ...n, isDirty: false })));
 
-      localStorage.setItem(STORAGE_KEYS.NODES, JSON.stringify(persistentNodes));
-      localStorage.setItem(STORAGE_KEYS.CONNECTIONS, JSON.stringify(connections));
-      localStorage.setItem(STORAGE_KEYS.TRANSFORM, JSON.stringify({ scale, offset }));
+      // Update Manifest lastModified
+      setManifest(prev => {
+        const updated = prev.map(m =>
+          m.id === currentProjectId ? { ...m, lastModified: new Date().toISOString() } : m
+        );
+        localStorage.setItem(STORAGE_KEYS.MANIFEST, JSON.stringify(updated));
+        return updated;
+      });
     }, 2000);
 
-    localStorage.setItem('backgroundPattern', backgroundPattern);
-    localStorage.setItem('backgroundOpacity', backgroundOpacity.toString());
-    localStorage.setItem('theme', theme);
-    localStorage.setItem('syntaxTheme', syntaxTheme);
+    // PROPERTIES: Save immediately to LocalStorage (Atomic & Fast)
+    const props: CanvasProperties = {
+      backgroundPattern,
+      backgroundOpacity,
+      theme,
+      syntaxTheme,
+      transform: { scale, offset }
+    };
+    localStorage.setItem(`${STORAGE_KEYS.PROPS_PREFIX}${currentProjectId}`, JSON.stringify(props));
 
     return () => {
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
     };
-  }, [nodes, connections, scale, offset, loadingContent, backgroundPattern, backgroundOpacity, theme, syntaxTheme]);
+  }, [nodes, connections, scale, offset, loadingContent, backgroundPattern, backgroundOpacity, theme, syntaxTheme, currentProjectId]);
 
   // Apply Theme
   useEffect(() => {
@@ -1239,6 +1324,175 @@ function App() {
           })()}
         </svg>
       </div>
+
+      <div className={`sidebar-container ${!isSidebarOpen ? 'sidebar-collapsed' : ''}`}>
+        <div className="sidebar" onPointerDown={(e) => e.stopPropagation()}>
+          <div className="sidebar-header">
+            <div className="sidebar-title">
+              <i className="bi bi-stack"></i>
+              CodeCanvas
+            </div>
+            <button className="toolbar-btn" onClick={() => setIsSidebarOpen(false)}>
+              <i className="bi bi-chevron-left"></i>
+            </button>
+          </div>
+
+          <div className="project-list-container">
+            <div className="settings-label" style={{ paddingLeft: 0, marginBottom: '12px' }}>Your Canvases</div>
+            {manifest.map(p => (
+              <div
+                key={p.id}
+                className={`sidebar-project-item ${p.id === currentProjectId ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentProjectId(p.id);
+                  localStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT_ID, p.id);
+                }}
+              >
+                {editingProjectId === p.id ? (
+                  <input
+                    autoFocus
+                    value={p.name}
+                    onChange={(e) => {
+                      const newName = e.target.value;
+                      setManifest(prev => {
+                        const updated = prev.map(m => m.id === p.id ? { ...m, name: newName } : m);
+                        localStorage.setItem(STORAGE_KEYS.MANIFEST, JSON.stringify(updated));
+                        return updated;
+                      });
+                    }}
+                    onBlur={() => setEditingProjectId(null)}
+                    onKeyDown={(e) => e.key === 'Enter' && setEditingProjectId(null)}
+                  />
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="project-item-name">{p.name}</div>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button
+                        className="toolbar-btn"
+                        style={{ width: '24px', height: '24px', fontSize: '0.8rem' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingProjectId(p.id);
+                        }}
+                        title="Rename Canvas"
+                      >
+                        <i className="bi bi-pencil"></i>
+                      </button>
+                      <button
+                        className="toolbar-btn danger"
+                        style={{ width: '24px', height: '24px', fontSize: '0.8rem' }}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+
+                          // Prevent deleting the last canvas
+                          if (manifest.length <= 1) {
+                            alert('Cannot delete the last canvas. Create a new one first!');
+                            return;
+                          }
+
+                          // Confirm deletion
+                          if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) {
+                            return;
+                          }
+
+                          // If deleting the current project, switch to another one first
+                          if (p.id === currentProjectId) {
+                            const otherProject = manifest.find(m => m.id !== p.id);
+                            if (otherProject) {
+                              setCurrentProjectId(otherProject.id);
+                              localStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT_ID, otherProject.id);
+                            }
+                          }
+
+                          // Delete from storage
+                          await ProjectStorage.deleteProject(p.id);
+                          localStorage.removeItem(`${STORAGE_KEYS.PROPS_PREFIX}${p.id}`);
+
+                          // Remove from manifest
+                          const updatedManifest = manifest.filter(m => m.id !== p.id);
+                          setManifest(updatedManifest);
+                          localStorage.setItem(STORAGE_KEYS.MANIFEST, JSON.stringify(updatedManifest));
+                        }}
+                        title="Delete Canvas"
+                      >
+                        <i className="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="project-item-meta">
+                  <i className="bi bi-clock-history"></i>
+                  {new Date(p.lastModified).toLocaleDateString()}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            className="create-project-btn"
+            onClick={async () => {
+              const newId = `project-${Date.now()}`;
+              const newProject = { id: newId, name: 'Untitled Canvas', lastModified: new Date().toISOString() };
+
+              // Initialize EMPTY storage for the new project FIRST
+              const initialProps: CanvasProperties = {
+                backgroundPattern: 'grid',
+                backgroundOpacity: 0.7,
+                theme: 'dark',
+                syntaxTheme: 'classic',
+                transform: { scale: 1, offset: { x: 0, y: 0 } }
+              };
+              localStorage.setItem(`${STORAGE_KEYS.PROPS_PREFIX}${newId}`, JSON.stringify(initialProps));
+
+              // Initialize empty objects in IndexedDB
+              await ProjectStorage.saveProjectObjects(newId, [], []);
+
+              // Update manifest
+              const newManifest = [...manifest, newProject];
+              setManifest(newManifest);
+              localStorage.setItem(STORAGE_KEYS.MANIFEST, JSON.stringify(newManifest));
+
+              // NOW switch to the new project
+              setCurrentProjectId(newId);
+              localStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT_ID, newId);
+              setEditingProjectId(newId);
+            }}
+          >
+            <i className="bi bi-plus-lg"></i>
+            New Canvas
+          </button>
+        </div>
+
+        {!isSidebarOpen && (
+          <div className="sidebar-tab" onClick={() => setIsSidebarOpen(true)}>
+            <i className="bi bi-layout-sidebar-inset"></i>
+          </div>
+        )}
+      </div>
+
+      {/* Top Left Breadcrumb (Optional but nice) */}
+      {!isSidebarOpen && (
+        <div style={{
+          position: 'fixed',
+          top: '24px',
+          left: '80px',
+          zIndex: 2000,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 16px',
+          borderRadius: '12px',
+          background: 'var(--bg-ui)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--text-main)',
+          fontSize: '0.9rem',
+          fontWeight: 600
+        }}>
+          <i className="bi bi-journal-bookmark" style={{ color: 'var(--accent-primary)' }}></i>
+          {manifest.find(m => m.id === currentProjectId)?.name}
+        </div>
+      )}
 
       <div className="canvas-controls">
         <button className="control-btn" onClick={() => setScale((s: number) => Math.min(s + 0.1, 5))}>+</button>
