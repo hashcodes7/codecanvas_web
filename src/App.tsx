@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './index.css';
 import { FileStorage } from './storage';
 import { FileNodeService } from './FileNodeService';
@@ -138,6 +138,38 @@ function App() {
     };
   }, [nodes, connections, scale, offset, loadingContent]);
 
+  const deleteSelected = useCallback(() => {
+    if (selectedNodeId) {
+      setNodes(prev => prev.filter(n => n.id !== selectedNodeId));
+      setConnections(prev => prev.filter(c => c.source.nodeId !== selectedNodeId && c.target.nodeId !== selectedNodeId));
+      setSelectedNodeId(null);
+    } else if (selectedConnectionId) {
+      setConnections(prev => prev.filter(c => c.id !== selectedConnectionId));
+      setSelectedConnectionId(null);
+    }
+  }, [selectedNodeId, selectedConnectionId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input, textarea, or contentEditable
+      if (
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLInputElement ||
+        (e.target as HTMLElement).isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key === 'Delete') {
+        // If  delete if NOT in an active editor
+        deleteSelected();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deleteSelected]);
+
   const addTextNode = () => {
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -159,6 +191,51 @@ function App() {
 
     setNodes(prev => [...prev, newNode]);
     setSelectedNodeId(newNode.id);
+  };
+
+  const addFileNode = async () => {
+    try {
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const [fileHandle] = await (window as any).showOpenFilePicker({
+        types: [
+          {
+            description: 'Code Files',
+            accept: {
+              'text/*': ['.ts', '.tsx', '.js', '.jsx', '.py', '.java', '.cpp', '.c', '.go', '.rs', '.css', '.html', '.json', '.md', '.txt']
+            }
+          }
+        ],
+        multiple: false
+      });
+
+      if (fileHandle) {
+        const x = (rect.width / 2 - offset.x - 150) / scale;
+        const y = (rect.height / 2 - offset.y - 100) / scale;
+        const nodeId = `node-${Date.now()}`;
+        const content = await FileNodeService.readFile(fileHandle) || '';
+
+        await FileStorage.saveFileHandle(nodeId, fileHandle);
+
+        const newNode: NodeData = {
+          id: nodeId,
+          title: fileHandle.name,
+          type: 'file',
+          content,
+          uri: `file://${fileHandle.name}`,
+          x,
+          y,
+          hasWritePermission: false,
+          isEditing: false
+        };
+
+        setNodes(prev => [...prev, newNode]);
+        setSelectedNodeId(newNode.id);
+      }
+    } catch (err) {
+      console.warn('File selection cancelled or failed:', err);
+    }
   };
 
   const syncNodeFromDisk = async (nodeId: string) => {
@@ -410,17 +487,6 @@ function App() {
     setSelectedNodeId(id);
     setSelectedConnectionId(null); // Clear connection selection when a node is selected
     lastMousePos.current = { x: e.clientX, y: e.clientY };
-  };
-
-  const deleteSelected = () => {
-    if (selectedNodeId) {
-      setNodes(prev => prev.filter(n => n.id !== selectedNodeId));
-      setConnections(prev => prev.filter(c => c.source.nodeId !== selectedNodeId && c.target.nodeId !== selectedNodeId));
-      setSelectedNodeId(null);
-    } else if (selectedConnectionId) {
-      setConnections(prev => prev.filter(c => c.id !== selectedConnectionId));
-      setSelectedConnectionId(null);
-    }
   };
 
   const unlinkNode = (nodeId: string) => {
@@ -804,7 +870,7 @@ function App() {
                 )
               ) : (
                 <div style={{ display: 'flex', flex: 1, minWidth: 0 }}>
-                  {node.content ? (
+                  {node.content !== undefined ? (
                     <>
                       <div className="line-numbers">
                         {node.content.split('\n').map((_, i) => (
@@ -828,8 +894,8 @@ function App() {
                         <pre
                           className={`code-editor language-${getLanguageFromFilename(node.title)}`}
                           onDoubleClick={() => {
-                            // Only allow edit if write permission/loaded
-                            if (node.content) {
+                            // Only allow edit if content is loaded
+                            if (node.content !== undefined) {
                               setNodes(prev => prev.map(n => n.id === node.id ? { ...n, isEditing: true } : n));
                             }
                           }}
@@ -999,7 +1065,7 @@ function App() {
           <i className="bi bi-plus-lg"></i>
         </button>
         <div className="toolbar-divider"></div>
-        <button className="toolbar-btn" title="Add File (Coming Soon)">
+        <button className="toolbar-btn" onClick={addFileNode} title="Add File">
           <i className="bi bi-file-earmark-plus"></i>
         </button>
 
