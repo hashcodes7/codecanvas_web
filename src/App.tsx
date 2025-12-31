@@ -423,6 +423,10 @@ function App() {
     }
   };
 
+  const unlinkNode = (nodeId: string) => {
+    setConnections(prev => prev.filter(c => c.source.nodeId !== nodeId && c.target.nodeId !== nodeId));
+  };
+
   const updateConnectionStyle = (id: string, style: Partial<{ color: string, width: number }>) => {
     setConnections(prev => prev.map(c =>
       c.id === id ? { ...c, style: { ...c.style, ...style } } : c
@@ -1057,6 +1061,11 @@ function App() {
         {(selectedNodeId || selectedConnectionId) && (
           <>
             <div className="toolbar-divider"></div>
+            {selectedNodeId && (
+              <button className="toolbar-btn" onClick={() => unlinkNode(selectedNodeId)} title="Unlink All Connections">
+                <i className="bi bi-scissors"></i>
+              </button>
+            )}
             <button className="toolbar-btn danger" onClick={deleteSelected} title="Delete Selected">
               <i className="bi bi-trash"></i>
             </button>
