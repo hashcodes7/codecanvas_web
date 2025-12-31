@@ -4,7 +4,7 @@ import { FileStorage } from './storage';
 import { FileNodeService } from './FileNodeService';
 import type { NodeData, Connection } from './types';
 import { INITIAL_NODES, STORAGE_KEYS } from './constants';
-import { getPathData } from './utils/canvasUtils';
+import { getPathData, computeHandlePositions } from './utils/canvasUtils';
 import { getLanguageFromFilename } from './utils/fileUtils';
 import { activateSymbols, addGenericHandlesToCode } from './utils/codeUtils';
 
@@ -67,7 +67,7 @@ const CanvasNode = memo(({
   onSync: (id: string) => void,
   onRequestPermission: (id: string) => void,
   onSave: (id: string, content: string) => void,
-  updateHandleOffsets: () => void
+  updateHandleOffsets: (id?: string) => void
 }) => {
   const codeRef = useRef<HTMLPreElement>(null);
 
@@ -92,11 +92,12 @@ const CanvasNode = memo(({
         // Apply handles after highlighting
         activateSymbols(el);
         addGenericHandlesToCode(el);
-        updateHandleOffsets();
+        addGenericHandlesToCode(el);
+        updateHandleOffsets(node.id);
       } else if (node.type === 'text') {
         activateSymbols(el);
         addGenericHandlesToCode(el);
-        updateHandleOffsets();
+        updateHandleOffsets(node.id);
       }
     }
   }, [node.content, node.isEditing, node.type, updateHandleOffsets]);
@@ -443,7 +444,7 @@ function App() {
       localStorage.setItem(STORAGE_KEYS.NODES, JSON.stringify(persistentNodes));
       localStorage.setItem(STORAGE_KEYS.CONNECTIONS, JSON.stringify(connections));
       localStorage.setItem(STORAGE_KEYS.TRANSFORM, JSON.stringify({ scale, offset }));
-    }, 500);
+    }, 2000);
 
     return () => {
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
@@ -613,13 +614,65 @@ function App() {
   // Calculate handle offsets relative to node top-left
   // Calculate handle offsets relative to node top-left
   // Optimization: Scan the DOM instead of iterating the 'nodes' array to allow distinct stability.
-  const updateHandleOffsets = useCallback(() => {
+  // Calculate handle offsets relative to node top-left
+  // Optimization: specificNodeId allow for incremental updates instead of global scan
+  const updateHandleOffsets = useCallback((specificNodeId?: string) => {
+    // Strategy 1: Math-based (Fastest, no DOM read)
+    if (specificNodeId) {
+      const node = nodesMapRef.current.get(specificNodeId);
+      if (node && node.width && node.height) {
+        const handles = computeHandlePositions(0, 0, node.width, node.height);
+        setHandleOffsets(prev => {
+          const next = { ...prev };
+          Object.entries(handles).forEach(([hId, pos]) => {
+            next[`${specificNodeId}:${hId}`] = pos;
+          });
+          return next;
+        });
+        return;
+      }
+    }
+
+    // Strategy 2: DOM-based (Localized)
+    if (specificNodeId) {
+      const nodeEl = document.getElementById(specificNodeId);
+      if (!nodeEl) return;
+
+      const nodeRect = nodeEl.getBoundingClientRect();
+      const handles = nodeEl.querySelectorAll('[data-handle-id]');
+      const newOffsets: Record<string, { x: number, y: number }> = {};
+
+      handles.forEach(handle => {
+        const handleId = handle.getAttribute('data-handle-id');
+        if (!handleId) return;
+        const handleRect = handle.getBoundingClientRect();
+        newOffsets[`${specificNodeId}:${handleId}`] = {
+          x: (handleRect.left + handleRect.width / 2 - nodeRect.left) / scaleRef.current,
+          y: (handleRect.top + handleRect.height / 2 - nodeRect.top) / scaleRef.current
+        };
+      });
+
+      setHandleOffsets(prev => ({ ...prev, ...newOffsets }));
+      return;
+    }
+
+    // Strategy 3: Global DOM Scan (Fallback for init/zoom)
     const newOffsets: Record<string, { x: number, y: number }> = {};
     const nodeEls = document.querySelectorAll('.canvas-node');
 
     nodeEls.forEach(nodeEl => {
       const nodeId = nodeEl.id;
       if (!nodeId) return;
+
+      // Try to use math first if we have data to avoid layout thrashing
+      const node = nodesMapRef.current.get(nodeId);
+      if (node && node.width && node.height) {
+        const handles = computeHandlePositions(0, 0, node.width, node.height);
+        Object.entries(handles).forEach(([hId, pos]) => {
+          newOffsets[`${nodeId}:${hId}`] = pos;
+        });
+        return;
+      }
 
       const nodeRect = nodeEl.getBoundingClientRect();
       const handles = nodeEl.querySelectorAll('[data-handle-id]');
@@ -630,13 +683,13 @@ function App() {
 
         const handleRect = handle.getBoundingClientRect();
         newOffsets[`${nodeId}:${handleId}`] = {
-          x: (handleRect.left + handleRect.width / 2 - nodeRect.left) / scale,
-          y: (handleRect.top + handleRect.height / 2 - nodeRect.top) / scale
+          x: (handleRect.left + handleRect.width / 2 - nodeRect.left) / scaleRef.current,
+          y: (handleRect.top + handleRect.height / 2 - nodeRect.top) / scaleRef.current
         };
       });
     });
     setHandleOffsets(newOffsets);
-  }, [scale]);
+  }, []);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     const target = e.target as HTMLElement;
@@ -744,7 +797,7 @@ function App() {
 
       if (handle && targetNode && (targetNode.id !== linkingState.sourceNodeId || handle.getAttribute('data-handle-id') !== linkingState.sourceHandleId)) {
         const handleId = handle.getAttribute('data-handle-id')!;
-        updateHandleOffsets();
+        updateHandleOffsets(targetNode.id);
 
         const newConnection: Connection = {
           id: `conn-${Date.now()}`,
@@ -775,7 +828,7 @@ function App() {
         const newW = el.offsetWidth;
         const newH = el.offsetHeight;
         setNodes(prev => prev.map(n => n.id === id ? { ...n, width: newW, height: newH } : n));
-        updateHandleOffsets();
+        updateHandleOffsets(id);
       }
       resizingNodeRef.current = null;
     }
