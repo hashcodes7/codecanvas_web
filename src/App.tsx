@@ -1470,49 +1470,28 @@ function App() {
         )}
       </div>
 
-      {/* Top Left Breadcrumb (Optional but nice) */}
-      {!isSidebarOpen && (
-        <div style={{
-          position: 'fixed',
-          top: '24px',
-          left: '80px',
-          zIndex: 2000,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '8px 16px',
-          borderRadius: '12px',
-          background: 'var(--bg-ui)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid var(--border-subtle)',
-          color: 'var(--text-main)',
-          fontSize: '0.9rem',
-          fontWeight: 600
-        }}>
-          <i className="bi bi-journal-bookmark" style={{ color: 'var(--accent-primary)' }}></i>
-          {manifest.find(m => m.id === currentProjectId)?.name}
-        </div>
-      )}
+
 
       <div className="canvas-controls">
         <button className="control-btn" onClick={() => setScale((s: number) => Math.min(s + 0.1, 5))}>+</button>
         <button className="control-btn" onClick={() => setScale((s: number) => Math.max(s - 0.1, 0.1))}>−</button>
         <button className="control-btn" onClick={resetTransform}>⟲</button>
       </div>
-
-      <div className="glass-container" style={{
-        position: 'fixed',
-        top: '24px',
-        left: '24px',
-        padding: '12px 20px',
-        color: '#a78bfa',
-        fontSize: '0.875rem',
-        fontWeight: 500,
-        pointerEvents: 'none',
-        zIndex: 100
-      }}>
-        CodeCanvas Web Prototype • {Math.round(scale * 100)}%
-      </div>
+      {!isSidebarOpen && (
+        <div className="glass-container" style={{
+          position: 'fixed',
+          top: '24px',
+          left: '60px',
+          padding: '12px 20px',
+          color: '#a78bfa',
+          fontSize: '0.875rem',
+          fontWeight: 500,
+          pointerEvents: 'none',
+          zIndex: 100
+        }}>
+          {manifest.find(m => m.id === currentProjectId)?.name} • {Math.round(scale * 100)}%
+        </div>
+      )}
 
       {/* Main Toolbar */}
       <div className="main-toolbar">
