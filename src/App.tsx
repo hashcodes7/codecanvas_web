@@ -855,7 +855,11 @@ function App() {
     const isNode = !!target.closest('.canvas-node');
     const isHandle = !!target.closest('[data-handle-id]');
     const isConnection = !!target.closest('.connection-path');
-    const isUI = !!target.closest('.main-toolbar') || !!target.closest('.canvas-controls') || !!target.closest('.glass-container') || !!target.closest('.top-right-controls');
+    const isUI = !!target.closest('.main-toolbar') ||
+      !!target.closest('.canvas-controls') ||
+      !!target.closest('.glass-container') ||
+      !!target.closest('.top-right-controls') ||
+      !!target.closest('.properties-toolbar');
 
     // Clear selections if clicking the empty canvas
     if (!isNode && !isHandle && !isConnection && !isUI) {
@@ -1018,6 +1022,7 @@ function App() {
           if (newShape.width > 5 || newShape.height > 5) {
             setShapes(prev => [...prev, newShape]);
           }
+          setCurrentTool('select');
         }
       } else {
         const target = e.target as HTMLElement;
@@ -1359,7 +1364,7 @@ function App() {
       ref={viewportRef}
       style={{
         '--grid-opacity': backgroundOpacity * 0.1,
-        cursor: isPanning ? 'grabbing' : (currentTool === 'select' ? 'grab' : 'crosshair')
+        cursor: isPanning ? 'grabbing' : (currentTool === 'select' ? 'var(--cursor-select)' : 'crosshair')
       } as any}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -1656,7 +1661,7 @@ function App() {
             onClick={() => setCurrentTool('select')}
             title="Select Tool"
           >
-            <i className="bi bi-cursor"></i>
+            <i className="bi bi-cursor mirrored-icon"></i>
           </button>
           <button
             className={`toolbar-btn ${currentTool === 'rectangle' ? 'active' : ''}`}
@@ -1725,86 +1730,84 @@ function App() {
           </button>
         </div>
 
-        {/* Contextual Options */}
-        {selectedObject && (
-          <>
-            <div className="toolbar-divider"></div>
-
-            {/* 1. Delete Option (Common for all objects) */}
-            <div className="toolbar-group">
-              <button
-                className="toolbar-btn danger"
-                onClick={deleteSelected}
-                title="Delete Selected Object"
-              >
-                <i className="bi bi-trash"></i>
-              </button>
-            </div>
-
-            {/* 2. Node Specific: Unlink */}
-            {selectedObject.type === 'node' && (
-              <>
-                <div className="toolbar-divider"></div>
-                <div className="toolbar-group">
-                  <button
-                    className="toolbar-btn"
-                    onClick={() => unlinkNode(selectedObject.id)}
-                    title="Unlink All Connections"
-                  >
-                    <i className="bi bi-scissors"></i>
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* 3. Style Specific: Colors & Thickness (Connections & Shapes) */}
-            {(selectedObject.type === 'connection' || selectedObject.type === 'shape') && (
-              <>
-                <div className="toolbar-divider"></div>
-                <div className="toolbar-group">
-                  {PASTEL_COLORS.map(color => {
-                    const isActive = selectedObject.type === 'connection'
-                      ? connections.find(c => c.id === selectedObject.id)?.style?.color === color.value
-                      : shapes.find(s => s.id === selectedObject.id)?.strokeColor === color.value;
-
-                    return (
-                      <button
-                        key={color.value}
-                        className={`color-swatch-btn ${isActive ? 'active' : ''}`}
-                        style={{ backgroundColor: color.value === 'var(--accent-primary)' ? '#8b5cf6' : color.value }}
-                        onClick={() => updateSelectedObjectStyle({ color: color.value })}
-                        title={color.name}
-                      />
-                    );
-                  })}
-                </div>
-                <div className="toolbar-divider"></div>
-                <div className="toolbar-group">
-                  <i className="bi bi-border-width" style={{ color: '#94a3b8', marginRight: '8px' }}></i>
-                  <select
-                    className="toolbar-select"
-                    onChange={(e) => updateSelectedObjectStyle({ width: Number(e.target.value) })}
-                    value={
-                      selectedObject.type === 'connection'
-                        ? (connections.find(c => c.id === selectedObject.id)?.style?.width || 2)
-                        : (shapes.find(s => s.id === selectedObject.id)?.strokeWidth || 2)
-                    }
-                  >
-                    {THICKNESS_OPTIONS.map(w => (
-                      <option key={w} value={w}>{w}px</option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-          </>
-        )}
-
         <div className="toolbar-divider"></div>
         <button className="toolbar-btn" title="Project Settings">
           <i className="bi bi-share"></i>
         </button>
       </div>
+
+      {/* Properties Toolbar (Right Side) */}
+      {selectedObject && (
+        <div className="properties-toolbar" onPointerDown={(e) => e.stopPropagation()}>
+          <div className="properties-header">
+            {selectedObject.type} {selectedObject.type === 'node' ? 'Block' : ''}
+          </div>
+
+          <div className="toolbar-group">
+            <button
+              className="toolbar-btn danger"
+              onClick={deleteSelected}
+              title="Delete Selected Object"
+            >
+              <i className="bi bi-trash"></i>
+            </button>
+          </div>
+
+          {(selectedObject.type === 'connection' || selectedObject.type === 'shape') && (
+            <>
+              <div className="toolbar-divider"></div>
+              <div className="toolbar-group">
+                {PASTEL_COLORS.map(color => {
+                  const isActive = selectedObject.type === 'connection'
+                    ? connections.find(c => c.id === selectedObject.id)?.style?.color === color.value
+                    : shapes.find(s => s.id === selectedObject.id)?.strokeColor === color.value;
+
+                  return (
+                    <button
+                      key={color.value}
+                      className={`color-swatch-btn ${isActive ? 'active' : ''}`}
+                      style={{ backgroundColor: color.value === 'var(--accent-primary)' ? '#8b5cf6' : color.value }}
+                      onClick={() => updateSelectedObjectStyle({ color: color.value })}
+                      title={color.name}
+                    />
+                  );
+                })}
+              </div>
+              <div className="toolbar-divider"></div>
+              <div className="toolbar-group">
+                <select
+                  className="toolbar-select"
+                  onChange={(e) => updateSelectedObjectStyle({ width: Number(e.target.value) })}
+                  value={
+                    selectedObject.type === 'connection'
+                      ? (connections.find(c => c.id === selectedObject.id)?.style?.width || 2)
+                      : (shapes.find(s => s.id === selectedObject.id)?.strokeWidth || 2)
+                  }
+                >
+                  {THICKNESS_OPTIONS.map(w => (
+                    <option key={w} value={w}>{w}px</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
+          {selectedObject.type === 'node' && (
+            <>
+              <div className="toolbar-divider"></div>
+              <div className="toolbar-group">
+                <button
+                  className="toolbar-btn"
+                  onClick={() => unlinkNode(selectedObject.id)}
+                  title="Unlink All Connections"
+                >
+                  <i className="bi bi-scissors"></i>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="top-right-controls" onPointerDown={(e) => e.stopPropagation()} style={{ pointerEvents: 'auto' }}>
         <button

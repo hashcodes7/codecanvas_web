@@ -30,6 +30,9 @@
   --grid-opacity: 0.07;
   --adapter-grid-rgb: 255, 255, 255;
 
+  /* Custom Bootstrap Cursor for Select Tool (Mirrored to point top-left) */
+  --cursor-select: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='white' stroke='black' stroke-width='0.5' viewBox='0 0 16 16'%3E%3Cg transform='scale(-1, 1) translate(-16, 0)'%3E%3Cpath d='M14.082 2.182a.5.5 0 0 1 .103.557L8.528 15.467a.5.5 0 0 1-.917-.007L5.57 10.694.803 8.652a.5.5 0 0 1-.006-.916l12.728-5.657a.5.5 0 0 1 .557.103zM2.25 8.184l3.897 1.67a.5.5 0 0 1 .262.263l1.67 3.897L12.743 3.52 2.25 8.184z'/%3E%3C/g%3E%3C/svg%3E") 2 2, auto;
+
   line-height: 1.5;
   font-weight: 400;
   color-scheme: dark;
@@ -632,7 +635,7 @@ body {
 .canvas-controls {
   position: fixed;
   bottom: 24px;
-  right: 24px;
+  left: 24px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1140,4 +1143,82 @@ body {
   width: 100%;
   padding: 2px 4px;
   outline: none;
+}
+
+/* Properties Toolbar (Right Side) */
+.properties-toolbar {
+  position: fixed;
+  top: 50%;
+  right: 24px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 20px;
+  background: var(--bg-ui);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-ui);
+  z-index: 2000;
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  min-width: 60px;
+  align-items: center;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+.properties-header {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+  writing-mode: vertical-lr;
+  rotate: 180deg;
+  padding: 8px 0;
+}
+
+.properties-toolbar .toolbar-group {
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.properties-toolbar .toolbar-divider {
+  width: 24px;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border-subtle);
+}
+
+.properties-toolbar .color-swatch-btn {
+  width: 24px;
+  height: 24px;
+}
+
+.properties-toolbar .toolbar-select {
+  width: 100%;
+  text-align: center;
+  padding: 4px 2px;
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #fff;
+}
+
+.mirrored-icon {
+  transform: scaleX(-1);
+  display: inline-block;
 }
