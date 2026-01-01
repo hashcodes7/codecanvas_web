@@ -63,7 +63,7 @@ const CanvasNode = memo(({
   isSelected: boolean,
   onPointerDown: (id: string) => void,
   onHeaderPointerDown: (id: string, e: React.PointerEvent) => void,
-  onResizePointerDown: (id: string, e: React.PointerEvent) => void,
+  onResizePointerDown: (id: string, e: React.PointerEvent, direction: string) => void,
   onContentChange: (id: string, content: string) => void,
   onToggleEditing: (id: string, editing: boolean) => void,
   onSync: (id: string) => void,
@@ -254,23 +254,62 @@ const CanvasNode = memo(({
           </div>
         )}
       </div>
-      {node.type === 'file' && (
-        <>
-          <div className="handle handle-left-1" data-handle-id="left-1"></div>
-          <div className="handle handle-left-2" data-handle-id="left-2"></div>
-          <div className="handle handle-right-1" data-handle-id="right-1"></div>
-          <div className="handle handle-right-2" data-handle-id="right-2"></div>
-          <div className="handle handle-top-1" data-handle-id="top-1"></div>
-          <div className="handle handle-top-2" data-handle-id="top-2"></div>
-          <div className="handle handle-bottom-1" data-handle-id="bottom-1"></div>
-          <div className="handle handle-bottom-2" data-handle-id="bottom-2"></div>
-        </>
-      )}
+      <>
+        <div className="handle handle-left-mid" data-handle-id="left-mid"></div>
+        <div className="handle handle-right-mid" data-handle-id="right-mid"></div>
+        <div className="handle handle-top-mid" data-handle-id="top-mid"></div>
+        <div className="handle handle-bottom-mid" data-handle-id="bottom-mid"></div>
+      </>
 
       <div
         className="resize-handle"
-        onPointerDown={(e) => onResizePointerDown(node.id, e)}
+        onPointerDown={(e) => onResizePointerDown(node.id, e, 'bottom-right')}
       />
+    </div>
+  );
+});
+
+const ShapeHandles = memo(({
+  shape,
+  isSelected,
+  onPointerDown,
+  onResizePointerDown,
+  updateHandleOffsets
+}: {
+  shape: ShapeData,
+  isSelected: boolean,
+  onPointerDown: (nodeId: string, handleId: string) => void,
+  onResizePointerDown: (id: string, e: React.PointerEvent, direction: string) => void,
+  updateHandleOffsets: (id?: string) => void
+}) => {
+  useEffect(() => {
+    updateHandleOffsets(shape.id);
+  }, [shape.id, shape.width, shape.height, updateHandleOffsets]);
+
+  return (
+    <div
+      className={`shape-handle-container ${isSelected ? 'selected' : ''}`}
+      id={`handles-${shape.id}`}
+      style={{
+        left: shape.x,
+        top: shape.y,
+        width: shape.width,
+        height: shape.height,
+        position: 'absolute',
+        zIndex: 5
+      }}
+    >
+      {/* Corner Resize Handles (Squares) */}
+      <div className="handle handle-top-left resize-sq" onPointerDown={(e) => onResizePointerDown(shape.id, e, 'top-left')}></div>
+      <div className="handle handle-top-right resize-sq" onPointerDown={(e) => onResizePointerDown(shape.id, e, 'top-right')}></div>
+      <div className="handle handle-bottom-left resize-sq" onPointerDown={(e) => onResizePointerDown(shape.id, e, 'bottom-left')}></div>
+      <div className="handle handle-bottom-right resize-sq" onPointerDown={(e) => onResizePointerDown(shape.id, e, 'bottom-right')}></div>
+
+      {/* Mid-point Connection Handles (Circles) */}
+      <div className="handle handle-left-mid" data-handle-id="left-mid" onPointerDown={(e) => { e.stopPropagation(); onPointerDown(shape.id, 'left-mid'); }}></div>
+      <div className="handle handle-right-mid" data-handle-id="right-mid" onPointerDown={(e) => { e.stopPropagation(); onPointerDown(shape.id, 'right-mid'); }}></div>
+      <div className="handle handle-top-mid" data-handle-id="top-mid" onPointerDown={(e) => { e.stopPropagation(); onPointerDown(shape.id, 'top-mid'); }}></div>
+      <div className="handle handle-bottom-mid" data-handle-id="bottom-mid" onPointerDown={(e) => { e.stopPropagation(); onPointerDown(shape.id, 'bottom-mid'); }}></div>
     </div>
   );
 });
@@ -441,7 +480,16 @@ function App() {
   const interactiveCanvasRef = useRef<{ syncTransform: (offset: { x: number, y: number }, scale: number) => void }>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const draggingNodeId = useRef<string | null>(null);
-  const resizingNodeRef = useRef<{ id: string, startX: number, startY: number, startW: number, startH: number } | null>(null);
+  const resizingNodeRef = useRef<{
+    id: string,
+    startX: number,
+    startY: number,
+    startW: number,
+    startH: number,
+    direction: string,
+    startNodeX: number,
+    startNodeY: number
+  } | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
 
   // Touch gestures state
@@ -466,18 +514,19 @@ function App() {
     connectionsByNodeRef.current = cMap;
   }, [nodes, connections]);
 
-  // Optimized helper to get actual canvas coordinates for a handle
   const getHandleCanvasPos = useCallback((nodeId: string, handleId: string) => {
     const node = nodesMapRef.current.get(nodeId);
+    const shape = shapesRef.current.find(s => s.id === nodeId);
+    const item = node || shape;
     const hOffset = handleOffsetsRef.current[`${nodeId}:${handleId}`];
 
-    if (!node || !hOffset) {
-      return { x: (node?.x || 0) + 150, y: (node?.y || 0) + 100 };
+    if (!item || !hOffset) {
+      return { x: (item?.x || 0) + 100, y: (item?.y || 0) + 100 };
     }
 
     return {
-      x: node.x + hOffset.x,
-      y: node.y + hOffset.y
+      x: item.x + hOffset.x,
+      y: item.y + hOffset.y
     };
   }, []);
 
@@ -499,8 +548,8 @@ function App() {
     }
   }, []);
 
-  const updateSVGLinesForNode = useCallback((nodeId: string) => {
-    const connIds = connectionsByNodeRef.current.get(nodeId) || [];
+  const updateSVGLinesForNode = useCallback((id: string) => {
+    const connIds = connectionsByNodeRef.current.get(id) || [];
     connIds.forEach(cId => {
       const conn = connectionsRef.current.find(c => c.id === cId);
       if (!conn) return;
@@ -779,8 +828,10 @@ function App() {
     // Strategy 1: Math-based (Fastest, no DOM read)
     if (specificNodeId) {
       const node = nodesMapRef.current.get(specificNodeId);
-      if (node && node.width && node.height) {
-        const handles = computeHandlePositions(0, 0, node.width, node.height);
+      const shape = shapesRef.current.find(s => s.id === specificNodeId);
+      const item = node || shape;
+      if (item && item.width && item.height) {
+        const handles = computeHandlePositions(0, 0, item.width, item.height);
         setHandleOffsets(prev => {
           const next = { ...prev };
           Object.entries(handles).forEach(([hId, pos]) => {
@@ -794,10 +845,13 @@ function App() {
 
     // Strategy 2: DOM-based (Localized)
     if (specificNodeId) {
-      const nodeEl = document.getElementById(specificNodeId);
+      let nodeEl = document.getElementById(specificNodeId);
+      if (!nodeEl && specificNodeId.startsWith('shape-')) {
+        nodeEl = document.getElementById(`handles-${specificNodeId}`);
+      }
       if (!nodeEl) return;
 
-      const nodeRect = nodeEl.getBoundingClientRect();
+      const rect = nodeEl.getBoundingClientRect();
       const handles = nodeEl.querySelectorAll('[data-handle-id]');
       const newOffsets: Record<string, { x: number, y: number }> = {};
 
@@ -806,8 +860,8 @@ function App() {
         if (!handleId) return;
         const handleRect = handle.getBoundingClientRect();
         newOffsets[`${specificNodeId}:${handleId}`] = {
-          x: (handleRect.left + handleRect.width / 2 - nodeRect.left) / scaleRef.current,
-          y: (handleRect.top + handleRect.height / 2 - nodeRect.top) / scaleRef.current
+          x: (handleRect.left + handleRect.width / 2 - rect.left) / scaleRef.current,
+          y: (handleRect.top + handleRect.height / 2 - rect.top) / scaleRef.current
         };
       });
 
@@ -817,33 +871,36 @@ function App() {
 
     // Strategy 3: Global DOM Scan (Fallback for init/zoom)
     const newOffsets: Record<string, { x: number, y: number }> = {};
-    const nodeEls = document.querySelectorAll('.canvas-node');
+    const nodeEls = document.querySelectorAll('.canvas-node, .shape-handle-container');
 
-    nodeEls.forEach(nodeEl => {
-      const nodeId = nodeEl.id;
-      if (!nodeId) return;
+    nodeEls.forEach(el => {
+      const id = el.id.startsWith('handles-') ? el.id.replace('handles-', '') : el.id;
+      if (!id) return;
 
-      // Try to use math first if we have data to avoid layout thrashing
-      const node = nodesMapRef.current.get(nodeId);
-      if (node && node.width && node.height) {
-        const handles = computeHandlePositions(0, 0, node.width, node.height);
+      // Try to use math first
+      const node = nodesMapRef.current.get(id);
+      const shape = shapesRef.current.find(s => s.id === id);
+      const item = node || shape;
+
+      if (item && item.width && item.height) {
+        const handles = computeHandlePositions(0, 0, item.width, item.height);
         Object.entries(handles).forEach(([hId, pos]) => {
-          newOffsets[`${nodeId}:${hId}`] = pos;
+          newOffsets[`${id}:${hId}`] = pos;
         });
         return;
       }
 
-      const nodeRect = nodeEl.getBoundingClientRect();
-      const handles = nodeEl.querySelectorAll('[data-handle-id]');
+      const rect = el.getBoundingClientRect();
+      const handles = el.querySelectorAll('[data-handle-id]');
 
       handles.forEach(handle => {
         const handleId = handle.getAttribute('data-handle-id');
         if (!handleId) return;
 
         const handleRect = handle.getBoundingClientRect();
-        newOffsets[`${nodeId}:${handleId}`] = {
-          x: (handleRect.left + handleRect.width / 2 - nodeRect.left) / scaleRef.current,
-          y: (handleRect.top + handleRect.height / 2 - nodeRect.top) / scaleRef.current
+        newOffsets[`${id}:${handleId}`] = {
+          x: (handleRect.left + handleRect.width / 2 - rect.left) / scaleRef.current,
+          y: (handleRect.top + handleRect.height / 2 - rect.top) / scaleRef.current
         };
       });
     });
@@ -855,6 +912,7 @@ function App() {
     const isNode = !!target.closest('.canvas-node');
     const isHandle = !!target.closest('[data-handle-id]');
     const isConnection = !!target.closest('.connection-path');
+    const isShapeContainer = !!target.closest('.shape-handle-container');
     const isUI = !!target.closest('.main-toolbar') ||
       !!target.closest('.canvas-controls') ||
       !!target.closest('.glass-container') ||
@@ -862,7 +920,7 @@ function App() {
       !!target.closest('.properties-toolbar');
 
     // Clear selections if clicking the empty canvas
-    if (!isNode && !isHandle && !isConnection && !isUI) {
+    if (!isNode && !isHandle && !isConnection && !isUI && !isShapeContainer) {
       // Check for shape selection if using select tool
       if (currentTool === 'select') {
         const rect = viewportRef.current?.getBoundingClientRect();
@@ -879,6 +937,8 @@ function App() {
             setSelectedShapeId(hitShape.id);
             setSelectedNodeId(null);
             setSelectedConnectionId(null);
+            draggingNodeId.current = hitShape.id;
+            lastMousePos.current = { x: e.clientX, y: e.clientY };
           } else {
             setSelectedNodeId(null);
             setSelectedConnectionId(null);
@@ -890,24 +950,36 @@ function App() {
         setSelectedConnectionId(null);
         setSelectedShapeId(null);
       }
-    } else if (isNode || isConnection || isHandle) {
-      setSelectedShapeId(null);
+    } else if (isNode || isConnection || isHandle || isShapeContainer) {
+      if (isShapeContainer) {
+        const container = target.closest('.shape-handle-container');
+        const shapeId = container?.id.replace('handles-', '');
+        if (shapeId) {
+          setSelectedShapeId(shapeId);
+          setSelectedNodeId(null);
+          setSelectedConnectionId(null);
+          draggingNodeId.current = shapeId;
+          lastMousePos.current = { x: e.clientX, y: e.clientY };
+        }
+      } else {
+        setSelectedShapeId(null);
+      }
     }
 
     const handle = target.closest('[data-handle-id]');
     if (handle) {
       e.stopPropagation();
-      const nodeEl = target.closest('.canvas-node');
-      const nodeId = nodeEl?.id;
+      const parentEl = target.closest('.canvas-node, .shape-handle-container');
+      const objectId = parentEl?.id.startsWith('handles-') ? parentEl.id.replace('handles-', '') : parentEl?.id;
       const handleId = handle.getAttribute('data-handle-id');
 
-      if (nodeId && handleId) {
+      if (objectId && handleId) {
         const rect = viewportRef.current?.getBoundingClientRect();
         if (!rect) return;
 
-        const hPos = getHandleCanvasPos(nodeId, handleId);
+        const hPos = getHandleCanvasPos(objectId, handleId);
         setLinkingState({
-          sourceNodeId: nodeId,
+          sourceNodeId: objectId,
           sourceHandleId: handleId,
           startX: hPos.x,
           startY: hPos.y,
@@ -966,24 +1038,63 @@ function App() {
       offsetRef.current = { x: offsetRef.current.x + dx, y: offsetRef.current.y + dy };
       updateCanvasDisplay();
     } else if (resizingNodeRef.current) {
-      const { id, startX, startY, startW, startH } = resizingNodeRef.current;
+      const { id, startX, startY, startW, startH, direction, startNodeX, startNodeY } = resizingNodeRef.current;
       const dX = (e.clientX - startX) / scaleRef.current;
       const dY = (e.clientY - startY) / scaleRef.current;
-      const newW = Math.max(200, startW + dX);
-      const newH = Math.max(100, startH + dY);
 
-      const el = document.getElementById(id);
-      if (el) {
-        el.style.width = `${newW}px`;
-        el.style.height = `${newH}px`;
-        // Since resize is transient, we don't update lines here yet as handle positions
-        // will move with the node bounds. We'll update on PointerUp.
+      let newW = startW;
+      let newH = startH;
+      let newX = startNodeX;
+      let newY = startNodeY;
+
+      if (direction.includes('right')) {
+        newW = Math.max(50, startW + dX);
+      } else if (direction.includes('left')) {
+        const delta = Math.min(dX, startW - 50);
+        newW = startW - delta;
+        newX = startNodeX + delta;
+      }
+
+      if (direction.includes('bottom')) {
+        newH = Math.max(50, startH + dY);
+      } else if (direction.includes('top')) {
+        const delta = Math.min(dY, startH - 50);
+        newH = startH - delta;
+        newY = startNodeY + delta;
+      }
+
+      const node = nodesMapRef.current.get(id);
+      const shape = shapesRef.current.find(s => s.id === id);
+
+      if (node) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.width = `${newW}px`;
+          el.style.height = `${newH}px`;
+          el.style.left = `${newX}px`;
+          el.style.top = `${newY}px`;
+        }
+      } else if (shape) {
+        shape.x = newX;
+        shape.y = newY;
+        shape.width = newW;
+        shape.height = newH;
+        const el = document.getElementById(`handles-${id}`);
+        if (el) {
+          el.style.width = `${newW}px`;
+          el.style.height = `${newH}px`;
+          el.style.left = `${newX}px`;
+          el.style.top = `${newY}px`;
+        }
+        updateCanvasDisplay();
       }
     } else if (draggingNodeId.current) {
       const dX_canvas = dx / scaleRef.current;
       const dY_canvas = dy / scaleRef.current;
 
       const node = nodesMapRef.current.get(draggingNodeId.current);
+      const shape = shapesRef.current.find(s => s.id === draggingNodeId.current);
+
       if (node) {
         node.x += dX_canvas;
         node.y += dY_canvas;
@@ -993,6 +1104,16 @@ function App() {
           el.style.top = `${node.y}px`;
         }
         updateSVGLinesForNode(node.id);
+      } else if (shape) {
+        shape.x += dX_canvas;
+        shape.y += dY_canvas;
+        const el = document.getElementById(`handles-${shape.id}`);
+        if (el) {
+          el.style.left = `${shape.x}px`;
+          el.style.top = `${shape.y}px`;
+        }
+        updateSVGLinesForNode(shape.id);
+        updateCanvasDisplay(); // Redraw static canvas for real-time movement
       }
     }
     lastMousePos.current = { x: e.clientX, y: e.clientY };
@@ -1027,19 +1148,23 @@ function App() {
       } else {
         const target = e.target as HTMLElement;
         const handle = target.closest('[data-handle-id]');
-        const targetNode = target.closest('.canvas-node');
+        const targetContainer = target.closest('.canvas-node, .shape-handle-container');
 
-        if (handle && targetNode && (targetNode.id !== linkingState.sourceNodeId || handle.getAttribute('data-handle-id') !== linkingState.sourceHandleId)) {
-          const handleId = handle.getAttribute('data-handle-id')!;
-          updateHandleOffsets(targetNode.id);
+        if (handle && targetContainer) {
+          const targetId = targetContainer.id.startsWith('handles-') ? targetContainer.id.replace('handles-', '') : targetContainer.id;
 
-          const newConnection: Connection = {
-            id: `conn-${Date.now()}`,
-            source: { nodeId: linkingState.sourceNodeId, handleId: linkingState.sourceHandleId },
-            target: { nodeId: targetNode.id, handleId: handleId },
-            type: defaultLineType
-          };
-          setConnections(prev => [...prev, newConnection]);
+          if (targetId !== linkingState.sourceNodeId || handle.getAttribute('data-handle-id') !== linkingState.sourceHandleId) {
+            const handleId = handle.getAttribute('data-handle-id')!;
+            updateHandleOffsets(targetId);
+
+            const newConnection: Connection = {
+              id: `conn-${Date.now()}`,
+              source: { nodeId: linkingState.sourceNodeId, handleId: linkingState.sourceHandleId },
+              target: { nodeId: targetId, handleId: handleId },
+              type: defaultLineType
+            };
+            setConnections(prev => [...prev, newConnection]);
+          }
         }
       }
       setLinkingState(null);
@@ -1053,16 +1178,32 @@ function App() {
     if (draggingNodeId.current) {
       const id = draggingNodeId.current;
       draggingNodeId.current = null;
-      setNodes(prev => prev.map(n => n.id === id ? { ...n, x: nodesMapRef.current.get(id)!.x, y: nodesMapRef.current.get(id)!.y } : n));
+      const node = nodesMapRef.current.get(id);
+      const shape = shapesRef.current.find(s => s.id === id);
+
+      if (node) {
+        setNodes(prev => prev.map(n => n.id === id ? { ...n, x: node.x, y: node.y } : n));
+      } else if (shape) {
+        setShapes(prev => prev.map(s => s.id === id ? { ...s, x: shape.x, y: shape.y } : s));
+      }
     }
 
     if (resizingNodeRef.current) {
-      const id = resizingNodeRef.current.id;
-      const el = document.getElementById(id);
-      if (el) {
+      const { id, direction } = resizingNodeRef.current;
+      const el = direction.startsWith('shape-') || document.getElementById(`handles-${id}`) ? document.getElementById(`handles-${id}`) : document.getElementById(id);
+
+      const node = nodesMapRef.current.get(id);
+      const shape = shapesRef.current.find(s => s.id === id);
+
+      if (node && el) {
         const newW = el.offsetWidth;
         const newH = el.offsetHeight;
-        setNodes(prev => prev.map(n => n.id === id ? { ...n, width: newW, height: newH } : n));
+        const newX = parseFloat(el.style.left);
+        const newY = parseFloat(el.style.top);
+        setNodes(prev => prev.map(n => n.id === id ? { ...n, width: newW, height: newH, x: newX, y: newY } : n));
+        updateHandleOffsets(id);
+      } else if (shape && el) {
+        setShapes(prev => prev.map(s => s.id === id ? { ...s, width: shape.width, height: shape.height, x: shape.x, y: shape.y } : s));
         updateHandleOffsets(id);
       }
       resizingNodeRef.current = null;
@@ -1073,17 +1214,28 @@ function App() {
     } catch (err) { }
   };
 
-  const handleResizeStart = (id: string, e: React.PointerEvent) => {
+  const handleResizeStart = (id: string, e: React.PointerEvent, direction: string = 'bottom-right') => {
     e.stopPropagation();
-    const node = document.getElementById(id);
-    if (!node) return;
+    let el = document.getElementById(id);
+    if (!el && id.startsWith('shape-')) {
+      el = document.getElementById(`handles-${id}`);
+    }
+    if (!el) return;
+
+    const node = nodesMapRef.current.get(id);
+    const shape = shapesRef.current.find(s => s.id === id);
+    const item = node || shape;
+    if (!item) return;
 
     resizingNodeRef.current = {
       id,
       startX: e.clientX,
       startY: e.clientY,
-      startW: node.offsetWidth,
-      startH: node.offsetHeight
+      startW: el.offsetWidth,
+      startH: el.offsetHeight,
+      startNodeX: item.x,
+      startNodeY: item.y,
+      direction
     };
 
     try {
@@ -1391,6 +1543,27 @@ function App() {
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`
         }}
       >
+
+        {shapes.map(shape => (
+          <ShapeHandles
+            key={`handles-${shape.id}`}
+            shape={shape}
+            isSelected={selectedShapeId === shape.id}
+            onPointerDown={(objectId, handleId) => {
+              const hPos = getHandleCanvasPos(objectId, handleId);
+              setLinkingState({
+                sourceNodeId: objectId,
+                sourceHandleId: handleId,
+                startX: hPos.x,
+                startY: hPos.y,
+                targetX: hPos.x,
+                targetY: hPos.y
+              });
+            }}
+            onResizePointerDown={handleResizeStart}
+            updateHandleOffsets={updateHandleOffsets}
+          />
+        ))}
 
         {nodes.map(node => (
           <CanvasNode

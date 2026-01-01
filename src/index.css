@@ -299,7 +299,8 @@ body {
   transform: scale(0);
 }
 
-.canvas-node:hover .handle {
+.canvas-node:hover .handle,
+.shape-handle-container:hover .handle {
   transform: scale(1);
 }
 
@@ -309,83 +310,109 @@ body {
   box-shadow: 0 0 10px var(--accent-primary);
 }
 
-.handle-left-1 {
+.shape-handle-container {
+  border: 1px dashed transparent;
+  transition: border-color 0.2s;
+  pointer-events: auto;
+}
+
+.shape-handle-container:hover,
+.shape-handle-container.selected {
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.shape-handle-container.selected .handle {
+  transform: scale(1);
+}
+
+/* Base handle positioning */
+.handle-left-mid {
   left: -5px;
-  top: 33%;
+  top: 50%;
   transform: translateY(-50%) scale(0);
+  cursor: crosshair;
 }
 
-.canvas-node:hover .handle-left-1 {
-  transform: translateY(-50%) scale(1);
+.handle-right-mid {
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%) scale(0);
+  cursor: crosshair;
 }
 
-.handle-left-2 {
+.handle-top-mid {
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%) scale(0);
+  cursor: crosshair;
+}
+
+.handle-bottom-mid {
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%) scale(0);
+  cursor: crosshair;
+}
+
+.handle-top-left {
   left: -5px;
-  top: 66%;
-  transform: translateY(-50%) scale(0);
-}
-
-.canvas-node:hover .handle-left-2 {
-  transform: translateY(-50%) scale(1);
-}
-
-.handle-right-1 {
-  right: -5px;
-  top: 33%;
-  transform: translateY(-50%) scale(0);
-}
-
-.canvas-node:hover .handle-right-1 {
-  transform: translateY(-50%) scale(1);
-}
-
-.handle-right-2 {
-  right: -5px;
-  top: 66%;
-  transform: translateY(-50%) scale(0);
-}
-
-.canvas-node:hover .handle-right-2 {
-  transform: translateY(-50%) scale(1);
-}
-
-.handle-top-1 {
   top: -5px;
-  left: 33%;
-  transform: translateX(-50%) scale(0);
+  transform: scale(0);
+  cursor: nwse-resize;
 }
 
-.canvas-node:hover .handle-top-1 {
-  transform: translateX(-50%) scale(1);
-}
-
-.handle-top-2 {
+.handle-top-right {
+  right: -5px;
   top: -5px;
-  left: 66%;
-  transform: translateX(-50%) scale(0);
+  transform: scale(0);
+  cursor: nesw-resize;
 }
 
-.canvas-node:hover .handle-top-2 {
-  transform: translateX(-50%) scale(1);
-}
-
-.handle-bottom-1 {
+.handle-bottom-left {
+  left: -5px;
   bottom: -5px;
-  left: 33%;
-  transform: translateX(-50%) scale(0);
+  transform: scale(0);
+  cursor: nesw-resize;
 }
 
-.canvas-node:hover .handle-bottom-1 {
-  transform: translateX(-50%) scale(1);
-}
-
-.handle-bottom-2 {
+.handle-bottom-right {
+  right: -5px;
   bottom: -5px;
-  left: 66%;
-  transform: translateX(-50%) scale(0);
+  transform: scale(0);
+  cursor: nwse-resize;
 }
 
-.canvas-node:hover .handle-bottom-2 {
+.resize-sq {
+  border-radius: 5px !important;
+  width: 10px !important;
+  height: 10px !important;
+  background: var(--syn-string) !important;
+
+}
+
+/* Visibility triggers */
+.canvas-node:hover .handle,
+.shape-handle-container:hover .handle,
+.shape-handle-container.selected .handle {
+  transform: scale(1);
+}
+
+/* Ensure translations are preserved for mid-points */
+.canvas-node:hover .handle-left-mid,
+.shape-handle-container:hover .handle-left-mid,
+.shape-handle-container.selected .handle-left-mid,
+.canvas-node:hover .handle-right-mid,
+.shape-handle-container:hover .handle-right-mid,
+.shape-handle-container.selected .handle-right-mid {
+  transform: translateY(-50%) scale(1);
+}
+
+.canvas-node:hover .handle-top-mid,
+.shape-handle-container:hover .handle-top-mid,
+.shape-handle-container.selected .handle-top-mid,
+.canvas-node:hover .handle-bottom-mid,
+.shape-handle-container:hover .handle-bottom-mid,
+.shape-handle-container.selected .handle-bottom-mid {
   transform: translateX(-50%) scale(1);
 }
 

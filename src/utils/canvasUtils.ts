@@ -18,13 +18,15 @@ export const getPathData = (x1: number, y1: number, x2: number, y2: number) => {
 
 export const computeHandlePositions = (x: number, y: number, width: number, height: number) => {
     return {
-        'left-1': { x, y: y + height * 0.33 },
-        'left-2': { x, y: y + height * 0.66 },
-        'right-1': { x: x + width, y: y + height * 0.33 },
-        'right-2': { x: x + width, y: y + height * 0.66 },
-        'top-1': { x: x + width * 0.33, y },
-        'top-2': { x: x + width * 0.66, y },
-        'bottom-1': { x: x + width * 0.33, y: y + height },
-        'bottom-2': { x: x + width * 0.66, y: y + height },
+        // Corners (Resize)
+        'top-left': { x, y },
+        'top-right': { x: x + width, y },
+        'bottom-left': { x, y: y + height },
+        'bottom-right': { x: x + width, y: y + height },
+        // Mid-points (Connection)
+        'top-mid': { x: x + width / 2, y },
+        'bottom-mid': { x: x + width / 2, y: y + height },
+        'left-mid': { x, y: y + height / 2 },
+        'right-mid': { x: x + width, y: y + height / 2 },
     };
 };
