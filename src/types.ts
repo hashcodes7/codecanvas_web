@@ -1,17 +1,31 @@
 
 export interface NodeData {
-    id: string; // Unique identifier for the node
-    title: string; // Display title of the node
-    type: 'file' | 'code' | 'text'; // Type of node content
-    content?: string; // The actual content (code key, text body, etc.)
-    uri?: string; // File path or URI if applicable
-    x: number; // X position on canvas
-    y: number; // Y position on canvas
-    width?: number; // Width of the node
-    height?: number; // Height of the node
-    isEditing?: boolean; // Whether the node is currently in edit mode
-    hasWritePermission?: boolean; // For file nodes: do we have write access?
-    isDirty?: boolean; // Has the content changed since last save?
+    id: string;
+    title: string;
+    type: 'file' | 'code' | 'text';
+    content?: string;
+    uri?: string;
+    x: number;
+    y: number;
+    width?: number;
+    height?: number;
+    isEditing?: boolean;
+    hasWritePermission?: boolean;
+    isDirty?: boolean;
+}
+
+export interface ShapeData {
+    id: string;
+    type: 'rectangle' | 'ellipse' | 'diamond' | 'arrow';
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    strokeColor: string;
+    fillColor: string;
+    strokeWidth: number;
+    opacity: number;
+    roughness?: number; // Kept for compatibility if needed, but usually 0 for clean
 }
 
 export interface Connection {
@@ -37,4 +51,9 @@ export interface CanvasProperties {
     theme: 'light' | 'dark' | 'paper';
     syntaxTheme: 'classic' | 'monokai' | 'nord' | 'solarized' | 'ink';
     transform: { scale: number; offset: { x: number; y: number } };
+    defaultShapeStyle?: {
+        strokeColor: string;
+        fillColor: string;
+        strokeWidth: number;
+    };
 }

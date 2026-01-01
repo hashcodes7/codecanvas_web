@@ -170,11 +170,6 @@ body {
   overflow: hidden;
   touch-action: none;
   /* Critical for custom gestures */
-  cursor: grab;
-}
-
-.canvas-viewport:active {
-  cursor: grabbing;
 }
 
 .canvas-transform-layer {

@@ -29,6 +29,7 @@ interface CodeCanvasDB extends DBSchema {
             id: string; // projectId
             nodes: any[];
             connections: any[];
+            shapes: any[];
             lastSaved: number;
         };
     };
@@ -39,8 +40,8 @@ let dbInstance: IDBPDatabase<CodeCanvasDB> | null = null;
 async function getDB() {
     if (dbInstance) return dbInstance;
 
-    dbInstance = await openDB<CodeCanvasDB>('codecanvas-db', 1, {
-        upgrade(db) {
+    dbInstance = await openDB<CodeCanvasDB>('codecanvas-db', 2, {
+        upgrade(db, oldVersion) {
             // Store for file contents
             if (!db.objectStoreNames.contains('files')) {
                 db.createObjectStore('files', { keyPath: 'id' });
@@ -132,21 +133,22 @@ export const FileStorage = {
 };
 
 export const ProjectStorage = {
-    async saveProjectObjects(projectId: string, nodes: any[], connections: any[]) {
+    async saveProjectObjects(projectId: string, nodes: any[], connections: any[], shapes: any[]) {
         const db = await getDB();
         await db.put('projectObjects', {
             id: projectId,
             nodes,
             connections,
+            shapes,
             lastSaved: Date.now()
         });
     },
 
-    async getProjectObjects(projectId: string): Promise<{ nodes: any[], connections: any[] } | null> {
+    async getProjectObjects(projectId: string): Promise<{ nodes: any[], connections: any[], shapes: any[] } | null> {
         const db = await getDB();
         const data = await db.get('projectObjects', projectId);
         if (!data) return null;
-        return { nodes: data.nodes, connections: data.connections };
+        return { nodes: data.nodes, connections: data.connections, shapes: data.shapes || [] };
     },
 
     async deleteProject(projectId: string) {

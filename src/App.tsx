@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from '
 import './index.css';
 import { FileStorage, ProjectStorage } from './storage';
 import { FileNodeService } from './FileNodeService';
-import type { NodeData, Connection, CanvasManifestItem, CanvasProperties } from './types';
-import { INITIAL_NODES, STORAGE_KEYS } from './constants';
+import type { NodeData, Connection, CanvasManifestItem, CanvasProperties, ShapeData } from './types';
+import { INITIAL_NODES, STORAGE_KEYS, PASTEL_COLORS, THICKNESS_OPTIONS } from './constants';
+import StaticCanvas from './components/StaticCanvas';
+import InteractiveCanvas from './components/InteractiveCanvas';
 import { getPathData, computeHandlePositions } from './utils/canvasUtils';
 import { getLanguageFromFilename } from './utils/fileUtils';
 import { activateSymbols, addGenericHandlesToCode } from './utils/codeUtils';
@@ -300,37 +302,54 @@ function App() {
   const [backgroundOpacity, setBackgroundOpacity] = useState<number>(0.7);
   const [theme, setTheme] = useState<'light' | 'dark' | 'paper'>('dark');
   const [syntaxTheme, setSyntaxTheme] = useState<'classic' | 'monokai' | 'nord' | 'solarized' | 'ink'>('classic');
+  const [shapes, setShapes] = useState<ShapeData[]>([]);
 
   const [isPanning, setIsPanning] = useState(false);
   const [isInteracting, setIsInteracting] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
   const [defaultLineType, setDefaultLineType] = useState<'line' | 'arrow' | 'bi-arrow'>('arrow');
   const [linkingState, setLinkingState] = useState<{
     sourceNodeId: string;
     sourceHandleId: string;
+    startX: number;
+    startY: number;
     targetX: number;
     targetY: number;
   } | null>(null);
 
   const [handleOffsets, setHandleOffsets] = useState<Record<string, { x: number, y: number }>>({});
+  const [currentTool, setCurrentTool] = useState<'select' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow'>('select');
   const [loadingContent, setLoadingContent] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+
+  // Generalized Selection Memo
+  const selectedObject = useMemo(() => {
+    if (selectedNodeId) return { type: 'node' as const, id: selectedNodeId };
+    if (selectedConnectionId) return { type: 'connection' as const, id: selectedConnectionId };
+    if (selectedShapeId) return { type: 'shape' as const, id: selectedShapeId };
+    return null;
+  }, [selectedNodeId, selectedConnectionId, selectedShapeId]);
 
   // Refs for high-performance transient updates
   const nodesRef = useRef(nodes);
   const connectionsRef = useRef(connections);
   const scaleRef = useRef(scale);
   const offsetRef = useRef(offset);
+  const shapesRef = useRef(shapes);
   const handleOffsetsRef = useRef(handleOffsets);
+  const selectedShapeIdRef = useRef(selectedShapeId);
 
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { connectionsRef.current = connections; }, [connections]);
   useEffect(() => { scaleRef.current = scale; }, [scale]);
   useEffect(() => { offsetRef.current = offset; }, [offset]);
+  useEffect(() => { shapesRef.current = shapes; }, [shapes]);
   useEffect(() => { handleOffsetsRef.current = handleOffsets; }, [handleOffsets]);
+  useEffect(() => { selectedShapeIdRef.current = selectedShapeId; }, [selectedShapeId]);
 
   // --- Persistence Logic ---
 
@@ -348,7 +367,7 @@ function App() {
         const m_transform = oldTransform ? JSON.parse(oldTransform) : { scale: 1, offset: { x: 0, y: 0 } };
 
         // Save to new system
-        await ProjectStorage.saveProjectObjects('project-1', m_nodes, m_connections);
+        await ProjectStorage.saveProjectObjects('project-1', m_nodes, m_connections, []);
         const props: CanvasProperties = {
           backgroundPattern: (localStorage.getItem('backgroundPattern') as any) || 'grid',
           backgroundOpacity: parseFloat(localStorage.getItem('backgroundOpacity') || '0.7'),
@@ -400,13 +419,15 @@ function App() {
       }
 
       // Load Heavy Objects from IndexedDB
-      const objects = await ProjectStorage.getProjectObjects(currentProjectId);
-      if (objects) {
-        setNodes(objects.nodes);
-        setConnections(objects.connections);
+      const data = await ProjectStorage.getProjectObjects(currentProjectId);
+      if (data) {
+        setNodes(data.nodes);
+        setConnections(data.connections);
+        setShapes(data.shapes || []);
       } else {
         setNodes(INITIAL_NODES);
         setConnections([]);
+        setShapes([]);
       }
 
       setLoadingContent(false);
@@ -416,6 +437,8 @@ function App() {
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const transformLayerRef = useRef<HTMLDivElement>(null);
+  const staticCanvasRef = useRef<{ syncTransform: (offset: { x: number, y: number }, scale: number, selectedId: string | null) => void }>(null);
+  const interactiveCanvasRef = useRef<{ syncTransform: (offset: { x: number, y: number }, scale: number) => void }>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const draggingNodeId = useRef<string | null>(null);
   const resizingNodeRef = useRef<{ id: string, startX: number, startY: number, startW: number, startH: number } | null>(null);
@@ -459,8 +482,15 @@ function App() {
   }, []);
 
   const updateCanvasDisplay = useCallback(() => {
+    const transform = `translate(${offsetRef.current.x}px, ${offsetRef.current.y}px) scale(${scaleRef.current})`;
     if (transformLayerRef.current) {
-      transformLayerRef.current.style.transform = `translate(${offsetRef.current.x}px, ${offsetRef.current.y}px) scale(${scaleRef.current})`;
+      transformLayerRef.current.style.transform = transform;
+    }
+    if (staticCanvasRef.current) {
+      staticCanvasRef.current.syncTransform(offsetRef.current, scaleRef.current, selectedShapeIdRef.current);
+    }
+    if (interactiveCanvasRef.current) {
+      interactiveCanvasRef.current.syncTransform(offsetRef.current, scaleRef.current);
     }
     if (viewportRef.current) {
       viewportRef.current.style.setProperty('--canvas-x', `${offsetRef.current.x}px`);
@@ -536,7 +566,7 @@ function App() {
         return { ...node, isDirty: false };
       });
 
-      await ProjectStorage.saveProjectObjects(currentProjectId, persistentNodes, connections);
+      await ProjectStorage.saveProjectObjects(currentProjectId, persistentNodes, connections, shapes);
 
       // Update state to reflect saved status
       setNodes(prev => prev.map(n => ({ ...n, isDirty: false })));
@@ -585,8 +615,11 @@ function App() {
     } else if (selectedConnectionId) {
       setConnections(prev => prev.filter(c => c.id !== selectedConnectionId));
       setSelectedConnectionId(null);
+    } else if (selectedShapeId) {
+      setShapes(prev => prev.filter(s => s.id !== selectedShapeId));
+      setSelectedShapeId(null);
     }
-  }, [selectedNodeId, selectedConnectionId]);
+  }, [selectedNodeId, selectedConnectionId, selectedShapeId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -826,8 +859,35 @@ function App() {
 
     // Clear selections if clicking the empty canvas
     if (!isNode && !isHandle && !isConnection && !isUI) {
-      setSelectedNodeId(null);
-      setSelectedConnectionId(null);
+      // Check for shape selection if using select tool
+      if (currentTool === 'select') {
+        const rect = viewportRef.current?.getBoundingClientRect();
+        if (rect) {
+          const x = (e.clientX - rect.left - offsetRef.current.x) / scaleRef.current;
+          const y = (e.clientY - rect.top - offsetRef.current.y) / scaleRef.current;
+
+          // Simple reverse-order hit testing (top-most first)
+          const hitShape = [...shapesRef.current].reverse().find(s => {
+            return x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height;
+          });
+
+          if (hitShape) {
+            setSelectedShapeId(hitShape.id);
+            setSelectedNodeId(null);
+            setSelectedConnectionId(null);
+          } else {
+            setSelectedNodeId(null);
+            setSelectedConnectionId(null);
+            setSelectedShapeId(null);
+          }
+        }
+      } else {
+        setSelectedNodeId(null);
+        setSelectedConnectionId(null);
+        setSelectedShapeId(null);
+      }
+    } else if (isNode || isConnection || isHandle) {
+      setSelectedShapeId(null);
     }
 
     const handle = target.closest('[data-handle-id]');
@@ -845,6 +905,8 @@ function App() {
         setLinkingState({
           sourceNodeId: nodeId,
           sourceHandleId: handleId,
+          startX: hPos.x,
+          startY: hPos.y,
           targetX: hPos.x,
           targetY: hPos.y
         });
@@ -853,7 +915,25 @@ function App() {
     }
 
     if (e.button === 0 && !draggingNodeId.current) {
-      setIsPanning(true);
+      if (currentTool !== 'select') {
+        setIsPanning(false);
+        const rect = viewportRef.current?.getBoundingClientRect();
+        if (rect) {
+          const x = (e.clientX - rect.left - offsetRef.current.x) / scaleRef.current;
+          const y = (e.clientY - rect.top - offsetRef.current.y) / scaleRef.current;
+          setLinkingState({
+            sourceNodeId: 'drawing',
+            sourceHandleId: currentTool,
+            startX: x,
+            startY: y,
+            targetX: x,
+            targetY: y
+          });
+        }
+      } else {
+        setIsPanning(true);
+      }
+
       lastMousePos.current = { x: e.clientX, y: e.clientY };
       try {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -916,21 +996,46 @@ function App() {
 
   const handlePointerUp = (e: React.PointerEvent) => {
     if (linkingState) {
-      const target = e.target as HTMLElement;
-      const handle = target.closest('[data-handle-id]');
-      const targetNode = target.closest('.canvas-node');
+      if (linkingState.sourceNodeId === 'drawing') {
+        const rect = viewportRef.current?.getBoundingClientRect();
+        if (rect) {
+          const x2 = (e.clientX - rect.left - offsetRef.current.x) / scaleRef.current;
+          const y2 = (e.clientY - rect.top - offsetRef.current.y) / scaleRef.current;
 
-      if (handle && targetNode && (targetNode.id !== linkingState.sourceNodeId || handle.getAttribute('data-handle-id') !== linkingState.sourceHandleId)) {
-        const handleId = handle.getAttribute('data-handle-id')!;
-        updateHandleOffsets(targetNode.id);
+          const newShape: ShapeData = {
+            id: `shape-${Date.now()}`,
+            type: linkingState.sourceHandleId as any,
+            x: Math.min(linkingState.startX, x2),
+            y: Math.min(linkingState.startY, y2),
+            width: Math.abs(linkingState.startX - x2),
+            height: Math.abs(linkingState.startY - y2),
+            strokeColor: theme === 'dark' ? '#8b5cf6' : '#6366f1',
+            fillColor: 'rgba(139, 92, 246, 0.05)',
+            strokeWidth: 2,
+            opacity: 1
+          };
 
-        const newConnection: Connection = {
-          id: `conn-${Date.now()}`,
-          source: { nodeId: linkingState.sourceNodeId, handleId: linkingState.sourceHandleId },
-          target: { nodeId: targetNode.id, handleId: handleId },
-          type: defaultLineType
-        };
-        setConnections(prev => [...prev, newConnection]);
+          if (newShape.width > 5 || newShape.height > 5) {
+            setShapes(prev => [...prev, newShape]);
+          }
+        }
+      } else {
+        const target = e.target as HTMLElement;
+        const handle = target.closest('[data-handle-id]');
+        const targetNode = target.closest('.canvas-node');
+
+        if (handle && targetNode && (targetNode.id !== linkingState.sourceNodeId || handle.getAttribute('data-handle-id') !== linkingState.sourceHandleId)) {
+          const handleId = handle.getAttribute('data-handle-id')!;
+          updateHandleOffsets(targetNode.id);
+
+          const newConnection: Connection = {
+            id: `conn-${Date.now()}`,
+            source: { nodeId: linkingState.sourceNodeId, handleId: linkingState.sourceHandleId },
+            target: { nodeId: targetNode.id, handleId: handleId },
+            type: defaultLineType
+          };
+          setConnections(prev => [...prev, newConnection]);
+        }
       }
       setLinkingState(null);
     }
@@ -1001,6 +1106,7 @@ function App() {
 
   const handlePointerDownNode = useCallback((id: string) => {
     setSelectedNodeId(id);
+    setSelectedShapeId(null);
   }, []);
 
   // Sync Wrappers
@@ -1018,17 +1124,26 @@ function App() {
     ));
   };
 
-  const PASTEL_COLORS = [
-    { name: 'Default', value: 'var(--accent-primary)' },
-    { name: 'Pink', value: '#ffb7b2' },
-    { name: 'Orange', value: '#ffdac1' },
-    { name: 'Yellow', value: '#fff9b1' },
-    { name: 'Green', value: '#baffc9' },
-    { name: 'Blue', value: '#bae1ff' },
-    { name: 'Purple', value: '#e0bbe4' },
-  ];
+  const updateShapeStyle = (id: string, style: Partial<{ strokeColor: string, strokeWidth: number }>) => {
+    setShapes(prev => prev.map(s =>
+      s.id === id ? { ...s, ...style } : s
+    ));
+  };
 
-  const THICKNESS_OPTIONS = [1, 2, 4, 6, 8];
+  const updateSelectedObjectStyle = (style: { color?: string, width?: number }) => {
+    const obj = selectedObject;
+    if (!obj) return;
+
+    if (obj.type === 'connection') {
+      updateConnectionStyle(obj.id, style);
+    } else if (obj.type === 'shape') {
+      const shapeStyle: Partial<{ strokeColor: string, strokeWidth: number }> = {};
+      if (style.color) shapeStyle.strokeColor = style.color;
+      if (style.width !== undefined) shapeStyle.strokeWidth = style.width;
+      updateShapeStyle(obj.id, shapeStyle);
+    }
+  };
+
 
   const resetTransform = () => {
     setScale(1);
@@ -1242,7 +1357,10 @@ function App() {
     <div
       className={`canvas-viewport ${isInteracting ? 'is-interacting' : ''}`}
       ref={viewportRef}
-      style={{ '--grid-opacity': backgroundOpacity * 0.1 } as any}
+      style={{
+        '--grid-opacity': backgroundOpacity * 0.1,
+        cursor: isPanning ? 'grabbing' : (currentTool === 'select' ? 'grab' : 'crosshair')
+      } as any}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -1253,6 +1371,14 @@ function App() {
         <div className={`canvas-background ${backgroundPattern}`} />
       </div>
 
+      <StaticCanvas
+        ref={staticCanvasRef}
+        shapes={shapes}
+        scale={scale}
+        offset={offset}
+        selectedShapeId={selectedShapeId}
+      />
+
       <div
         className="canvas-transform-layer"
         ref={transformLayerRef}
@@ -1260,6 +1386,7 @@ function App() {
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`
         }}
       >
+
         {nodes.map(node => (
           <CanvasNode
             key={node.id}
@@ -1317,23 +1444,41 @@ function App() {
                 onSelect={(id) => {
                   setSelectedConnectionId(id);
                   setSelectedNodeId(null);
+                  setSelectedShapeId(null);
                 }}
               />
             );
           })}
 
-          {/* Temporary/Linking Line */}
-          {linkingState && (() => {
-            const start = getHandleCanvasPos(linkingState.sourceNodeId, linkingState.sourceHandleId);
+          {linkingState && linkingState.sourceNodeId !== 'drawing' && (() => {
             return (
               <path
-                d={getPathData(start.x, start.y, linkingState.targetX, linkingState.targetY)}
+                d={getPathData(linkingState.startX, linkingState.startY, linkingState.targetX, linkingState.targetY)}
                 className="temp-connection"
               />
             );
           })()}
         </svg>
       </div>
+
+      <InteractiveCanvas
+        ref={interactiveCanvasRef}
+        activeShape={
+          linkingState && linkingState.sourceNodeId === 'drawing' ? {
+            type: linkingState.sourceHandleId as any,
+            x: Math.min(linkingState.startX, linkingState.targetX),
+            y: Math.min(linkingState.startY, linkingState.targetY),
+            width: Math.abs(linkingState.startX - linkingState.targetX),
+            height: Math.abs(linkingState.startY - linkingState.targetY),
+            strokeColor: theme === 'dark' ? '#8b5cf6' : '#6366f1',
+            fillColor: 'rgba(139, 92, 246, 0.1)',
+            strokeWidth: 2,
+            opacity: 1
+          } : null
+        }
+        scale={scale}
+        offset={offset}
+      />
 
       <div className={`sidebar-container ${!isSidebarOpen ? 'sidebar-collapsed' : ''}`}>
         <div className="sidebar" onPointerDown={(e) => e.stopPropagation()}>
@@ -1455,7 +1600,7 @@ function App() {
               localStorage.setItem(`${STORAGE_KEYS.PROPS_PREFIX}${newId}`, JSON.stringify(initialProps));
 
               // Initialize empty objects in IndexedDB
-              await ProjectStorage.saveProjectObjects(newId, [], []);
+              await ProjectStorage.saveProjectObjects(newId, [], [], []);
 
               // Update manifest
               const newManifest = [...manifest, newProject];
@@ -1505,15 +1650,57 @@ function App() {
 
       {/* Main Toolbar */}
       <div className="main-toolbar">
-        <button className="toolbar-btn primary" onClick={addTextNode} title="Add Text Note">
-          <i className="bi bi-plus-lg"></i>
-        </button>
-        <div className="toolbar-divider"></div>
-        <button className="toolbar-btn" onClick={addFileNode} title="Add File">
-          <i className="bi bi-file-earmark-plus"></i>
-        </button>
+        <div className="toolbar-group">
+          <button
+            className={`toolbar-btn ${currentTool === 'select' ? 'active' : ''}`}
+            onClick={() => setCurrentTool('select')}
+            title="Select Tool"
+          >
+            <i className="bi bi-cursor"></i>
+          </button>
+          <button
+            className={`toolbar-btn ${currentTool === 'rectangle' ? 'active' : ''}`}
+            onClick={() => setCurrentTool('rectangle')}
+            title="Rectangle"
+          >
+            <i className="bi bi-square"></i>
+          </button>
+          <button
+            className={`toolbar-btn ${currentTool === 'ellipse' ? 'active' : ''}`}
+            onClick={() => setCurrentTool('ellipse')}
+            title="Ellipse"
+          >
+            <i className="bi bi-circle"></i>
+          </button>
+          <button
+            className={`toolbar-btn ${currentTool === 'diamond' ? 'active' : ''}`}
+            onClick={() => setCurrentTool('diamond')}
+            title="Diamond"
+          >
+            <i className="bi bi-diamond"></i>
+          </button>
+          <button
+            className={`toolbar-btn ${currentTool === 'arrow' ? 'active' : ''}`}
+            onClick={() => setCurrentTool('arrow')}
+            title="Arrow"
+          >
+            <i className="bi bi-arrow-up-right"></i>
+          </button>
+        </div>
 
         <div className="toolbar-divider"></div>
+
+        <div className="toolbar-group">
+          <button className="toolbar-btn primary" onClick={addTextNode} title="Add Text Note">
+            <i className="bi bi-sticky"></i>
+          </button>
+          <button className="toolbar-btn" onClick={addFileNode} title="Add File">
+            <i className="bi bi-file-earmark-plus"></i>
+          </button>
+        </div>
+
+        <div className="toolbar-divider"></div>
+
         <div className="toolbar-group">
           <button
             className={`toolbar-btn ${defaultLineType === 'line' ? 'active' : ''}`}
@@ -1538,52 +1725,83 @@ function App() {
           </button>
         </div>
 
-        {selectedConnectionId && (
+        {/* Contextual Options */}
+        {selectedObject && (
           <>
             <div className="toolbar-divider"></div>
-            <div className="toolbar-group">
-              {PASTEL_COLORS.map(color => (
-                <button
-                  key={color.value}
-                  className="color-swatch-btn"
-                  style={{ backgroundColor: color.value === 'var(--accent-primary)' ? '#8b5cf6' : color.value }}
-                  onClick={() => updateConnectionStyle(selectedConnectionId, { color: color.value })}
-                  title={color.name}
-                />
-              ))}
-            </div>
-            <div className="toolbar-divider"></div>
-            <div className="toolbar-group">
-              <i className="bi bi-border-width" style={{ color: '#94a3b8', marginRight: '8px' }}></i>
-              <select
-                className="toolbar-select"
-                onChange={(e) => updateConnectionStyle(selectedConnectionId, { width: Number(e.target.value) })}
-                value={connections.find(c => c.id === selectedConnectionId)?.style?.width || 2}
-              >
-                {THICKNESS_OPTIONS.map(w => (
-                  <option key={w} value={w}>{w}px</option>
-                ))}
-              </select>
-            </div>
-          </>
-        )}
 
-        {(selectedNodeId || selectedConnectionId) && (
-          <>
-            <div className="toolbar-divider"></div>
-            {selectedNodeId && (
-              <button className="toolbar-btn" onClick={() => unlinkNode(selectedNodeId)} title="Unlink All Connections">
-                <i className="bi bi-scissors"></i>
+            {/* 1. Delete Option (Common for all objects) */}
+            <div className="toolbar-group">
+              <button
+                className="toolbar-btn danger"
+                onClick={deleteSelected}
+                title="Delete Selected Object"
+              >
+                <i className="bi bi-trash"></i>
               </button>
+            </div>
+
+            {/* 2. Node Specific: Unlink */}
+            {selectedObject.type === 'node' && (
+              <>
+                <div className="toolbar-divider"></div>
+                <div className="toolbar-group">
+                  <button
+                    className="toolbar-btn"
+                    onClick={() => unlinkNode(selectedObject.id)}
+                    title="Unlink All Connections"
+                  >
+                    <i className="bi bi-scissors"></i>
+                  </button>
+                </div>
+              </>
             )}
-            <button className="toolbar-btn danger" onClick={deleteSelected} title="Delete Selected">
-              <i className="bi bi-trash"></i>
-            </button>
+
+            {/* 3. Style Specific: Colors & Thickness (Connections & Shapes) */}
+            {(selectedObject.type === 'connection' || selectedObject.type === 'shape') && (
+              <>
+                <div className="toolbar-divider"></div>
+                <div className="toolbar-group">
+                  {PASTEL_COLORS.map(color => {
+                    const isActive = selectedObject.type === 'connection'
+                      ? connections.find(c => c.id === selectedObject.id)?.style?.color === color.value
+                      : shapes.find(s => s.id === selectedObject.id)?.strokeColor === color.value;
+
+                    return (
+                      <button
+                        key={color.value}
+                        className={`color-swatch-btn ${isActive ? 'active' : ''}`}
+                        style={{ backgroundColor: color.value === 'var(--accent-primary)' ? '#8b5cf6' : color.value }}
+                        onClick={() => updateSelectedObjectStyle({ color: color.value })}
+                        title={color.name}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="toolbar-divider"></div>
+                <div className="toolbar-group">
+                  <i className="bi bi-border-width" style={{ color: '#94a3b8', marginRight: '8px' }}></i>
+                  <select
+                    className="toolbar-select"
+                    onChange={(e) => updateSelectedObjectStyle({ width: Number(e.target.value) })}
+                    value={
+                      selectedObject.type === 'connection'
+                        ? (connections.find(c => c.id === selectedObject.id)?.style?.width || 2)
+                        : (shapes.find(s => s.id === selectedObject.id)?.strokeWidth || 2)
+                    }
+                  >
+                    {THICKNESS_OPTIONS.map(w => (
+                      <option key={w} value={w}>{w}px</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
           </>
         )}
 
         <div className="toolbar-divider"></div>
-        <button className="toolbar-btn" title="Connection Settings">
+        <button className="toolbar-btn" title="Project Settings">
           <i className="bi bi-share"></i>
         </button>
       </div>
