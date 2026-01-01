@@ -302,6 +302,7 @@ function App() {
   const [syntaxTheme, setSyntaxTheme] = useState<'classic' | 'monokai' | 'nord' | 'solarized' | 'ink'>('classic');
 
   const [isPanning, setIsPanning] = useState(false);
+  const [isInteracting, setIsInteracting] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [defaultLineType, setDefaultLineType] = useState<'line' | 'arrow' | 'bi-arrow'>('arrow');
@@ -455,6 +456,17 @@ function App() {
       x: node.x + hOffset.x,
       y: node.y + hOffset.y
     };
+  }, []);
+
+  const updateCanvasDisplay = useCallback(() => {
+    if (transformLayerRef.current) {
+      transformLayerRef.current.style.transform = `translate(${offsetRef.current.x}px, ${offsetRef.current.y}px) scale(${scaleRef.current})`;
+    }
+    if (viewportRef.current) {
+      viewportRef.current.style.setProperty('--canvas-x', `${offsetRef.current.x}px`);
+      viewportRef.current.style.setProperty('--canvas-y', `${offsetRef.current.y}px`);
+      viewportRef.current.style.setProperty('--canvas-scale', scaleRef.current.toString());
+    }
   }, []);
 
   const updateSVGLinesForNode = useCallback((nodeId: string) => {
@@ -866,10 +878,9 @@ function App() {
     const dy = e.clientY - lastMousePos.current.y;
 
     if (isPanning) {
+      if (!isInteracting) setIsInteracting(true);
       offsetRef.current = { x: offsetRef.current.x + dx, y: offsetRef.current.y + dy };
-      if (transformLayerRef.current) {
-        transformLayerRef.current.style.transform = `translate(${offsetRef.current.x}px, ${offsetRef.current.y}px) scale(${scaleRef.current})`;
-      }
+      updateCanvasDisplay();
     } else if (resizingNodeRef.current) {
       const { id, startX, startY, startW, startH } = resizingNodeRef.current;
       const dX = (e.clientX - startX) / scaleRef.current;
@@ -1136,32 +1147,22 @@ function App() {
 
         const scaleRatio = dist / lastTouchDistance.current;
 
-        // We need to use functional state updates or refs for state variables to avoid stale closures
-        // Since we are inside useEffect with dependencies, we can use current state, 
-        // BUT we need to be careful about the dependency array potentially resetting listeners too often.
-        // Ideally, we'd use refs for scale/offset, but that requires a bigger refactor.
-        // For now, we will add [scale, offset] to the effect deps, which is acceptable 
-        // (listeners re-attach on frame updates, might be slight perf hit but functional).
+        const prevScale = scaleRef.current;
+        const newScale = Math.min(Math.max(prevScale * scaleRatio, 0.1), 5);
 
-        setScale(prevScale => {
-          const newScale = Math.min(Math.max(prevScale * scaleRatio, 0.1), 5);
+        if (newScale !== prevScale) {
+          if (!isInteracting) setIsInteracting(true);
+          scaleRef.current = newScale;
+          const rect = el.getBoundingClientRect();
+          const cx = center.x - rect.left;
+          const cy = center.y - rect.top;
 
-          setOffset(prevOffset => {
-            const rect = el.getBoundingClientRect();
-            const cx = center.x - rect.left;
-            const cy = center.y - rect.top;
+          const newOffsetX = cx - (cx - offsetRef.current.x) * (newScale / prevScale);
+          const newOffsetY = cy - (cy - offsetRef.current.y) * (newScale / prevScale);
+          offsetRef.current = { x: newOffsetX, y: newOffsetY };
 
-            // We need the "effective" scale before this update? 
-            // Actually, simplified math:
-            // NewOffset = P - (P - OldOffset) * (NewScale / OldScale)
-
-            const newOffsetX = cx - (cx - prevOffset.x) * (newScale / prevScale);
-            const newOffsetY = cy - (cy - prevOffset.y) * (newScale / prevScale);
-            return { x: newOffsetX, y: newOffsetY };
-          });
-
-          return newScale;
-        });
+          updateCanvasDisplay();
+        }
 
         lastTouchDistance.current = dist;
       }
@@ -1171,6 +1172,10 @@ function App() {
       if (e.touches.length < 2) {
         lastTouchDistance.current = null;
         initialPinchCenter.current = null;
+        setIsInteracting(false);
+        // Sync back to React state only when gesture ends
+        setScale(scaleRef.current);
+        setOffset({ ...offsetRef.current });
       }
     };
 
@@ -1178,41 +1183,45 @@ function App() {
       // Prevent browser zoom (Ctrl + Wheel)
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
+        if (!isInteracting) setIsInteracting(true);
 
         const delta = -e.deltaY;
-        // Use functional state to avoid stale closures
-        setScale(prevScale => {
-          const factor = Math.pow(1.1, delta / 100);
-          const newScale = Math.min(Math.max(prevScale * factor, 0.1), 5);
+        const prevScale = scaleRef.current;
+        const factor = Math.pow(1.1, delta / 100);
+        const newScale = Math.min(Math.max(prevScale * factor, 0.1), 5);
 
-          setOffset(prevOffset => {
-            const rect = el.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
+        const rect = el.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
 
-            // Calculate offset based on current (previous) scale state
-            const newOffsetX = mouseX - (mouseX - prevOffset.x) * (newScale / prevScale);
-            const newOffsetY = mouseY - (mouseY - prevOffset.y) * (newScale / prevScale);
-            return { x: newOffsetX, y: newOffsetY };
-          });
-          return newScale;
-        });
+        const newOffsetX = mouseX - (mouseX - offsetRef.current.x) * (newScale / prevScale);
+        const newOffsetY = mouseY - (mouseY - offsetRef.current.y) * (newScale / prevScale);
+
+        scaleRef.current = newScale;
+        offsetRef.current = { x: newOffsetX, y: newOffsetY };
+
+        updateCanvasDisplay();
+
+        // Debounced sync for wheel
+        if ((window as any).wheelSyncTimeout) clearTimeout((window as any).wheelSyncTimeout);
+        (window as any).wheelSyncTimeout = setTimeout(() => {
+          setScale(scaleRef.current);
+          setOffset({ ...offsetRef.current });
+          setIsInteracting(false);
+        }, 150);
       } else {
-        // Panning (Standard Wheel)
-        // Note: We don't preventDefault here by default to allow node content scrolling.
-        // But if we want to force canvas pan, we can.
-        // Behavior: If e.target is canvas, pan. If inside node, bubbling might occur.
-        // For consistent "like native" feel, we only pan if the event wasn't consumed?
-        // Simpler approach: Always pan canvas, but rely on browser to handle scrollable children first?
-        // Actually, since we are using offset/translate, we are doing virtual scrolling.
-        // We should just update offset.
+        if (!isInteracting) setIsInteracting(true);
+        offsetRef.current = {
+          x: offsetRef.current.x - e.deltaX,
+          y: offsetRef.current.y - e.deltaY
+        };
+        updateCanvasDisplay();
 
-        // Check if we are over a scrollable element?
-        // For now, simple implementation:
-        setOffset(prev => ({
-          x: prev.x - e.deltaX,
-          y: prev.y - e.deltaY
-        }));
+        if ((window as any).wheelSyncTimeout) clearTimeout((window as any).wheelSyncTimeout);
+        (window as any).wheelSyncTimeout = setTimeout(() => {
+          setOffset({ ...offsetRef.current });
+          setIsInteracting(false);
+        }, 150);
       }
     };
 
@@ -1227,11 +1236,11 @@ function App() {
       el.removeEventListener('touchend', handleTouchEnd);
       el.removeEventListener('wheel', handleWheel);
     };
-  }, [scale, offset]);
+  }, []);
 
   return (
     <div
-      className="canvas-viewport"
+      className={`canvas-viewport ${isInteracting ? 'is-interacting' : ''}`}
       ref={viewportRef}
       style={{ '--grid-opacity': backgroundOpacity * 0.1 } as any}
       onPointerDown={handlePointerDown}
@@ -1240,16 +1249,17 @@ function App() {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      <div className="canvas-background-container" style={{ pointerEvents: 'none' }}>
+        <div className={`canvas-background ${backgroundPattern}`} />
+      </div>
+
       <div
         className="canvas-transform-layer"
+        ref={transformLayerRef}
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`
         }}
       >
-        <div className="canvas-background-container" style={{ pointerEvents: 'none' }}>
-          <div className={`canvas-background ${backgroundPattern}`} />
-        </div>
-
         {nodes.map(node => (
           <CanvasNode
             key={node.id}
@@ -1470,49 +1480,28 @@ function App() {
         )}
       </div>
 
-      {/* Top Left Breadcrumb (Optional but nice) */}
-      {!isSidebarOpen && (
-        <div style={{
-          position: 'fixed',
-          top: '24px',
-          left: '80px',
-          zIndex: 2000,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '8px 16px',
-          borderRadius: '12px',
-          background: 'var(--bg-ui)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid var(--border-subtle)',
-          color: 'var(--text-main)',
-          fontSize: '0.9rem',
-          fontWeight: 600
-        }}>
-          <i className="bi bi-journal-bookmark" style={{ color: 'var(--accent-primary)' }}></i>
-          {manifest.find(m => m.id === currentProjectId)?.name}
-        </div>
-      )}
+
 
       <div className="canvas-controls">
         <button className="control-btn" onClick={() => setScale((s: number) => Math.min(s + 0.1, 5))}>+</button>
         <button className="control-btn" onClick={() => setScale((s: number) => Math.max(s - 0.1, 0.1))}>−</button>
         <button className="control-btn" onClick={resetTransform}>⟲</button>
       </div>
-
-      <div className="glass-container" style={{
-        position: 'fixed',
-        top: '24px',
-        left: '24px',
-        padding: '12px 20px',
-        color: '#a78bfa',
-        fontSize: '0.875rem',
-        fontWeight: 500,
-        pointerEvents: 'none',
-        zIndex: 100
-      }}>
-        CodeCanvas Web Prototype • {Math.round(scale * 100)}%
-      </div>
+      {!isSidebarOpen && (
+        <div className="glass-container" style={{
+          position: 'fixed',
+          top: '24px',
+          left: '60px',
+          padding: '12px 20px',
+          color: '#a78bfa',
+          fontSize: '0.875rem',
+          fontWeight: 500,
+          pointerEvents: 'none',
+          zIndex: 100
+        }}>
+          {manifest.find(m => m.id === currentProjectId)?.name} • {Math.round(scale * 100)}%
+        </div>
+      )}
 
       {/* Main Toolbar */}
       <div className="main-toolbar">
