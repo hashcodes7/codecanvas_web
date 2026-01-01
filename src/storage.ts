@@ -41,7 +41,7 @@ async function getDB() {
     if (dbInstance) return dbInstance;
 
     dbInstance = await openDB<CodeCanvasDB>('codecanvas-db', 2, {
-        upgrade(db, oldVersion) {
+        upgrade(db,) {
             // Store for file contents
             if (!db.objectStoreNames.contains('files')) {
                 db.createObjectStore('files', { keyPath: 'id' });
