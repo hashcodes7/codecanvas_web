@@ -20,6 +20,7 @@ import { useShapes } from './hooks/useShapes';
 import { useSelection } from './hooks/useSelection';
 import { useGestures } from './hooks/useGestures';
 import { usePersistence } from './hooks/usePersistence';
+import { useHistory } from './hooks/useHistory';
 import ShapeHandles from './components/objects/Shapes/ShapeHandles';
 import ConnectionLine from './components/objects/ConnectionLine';
 
@@ -161,6 +162,20 @@ function App() {
     setSyntaxTheme,
     updateLastModified
   });
+
+  const { addToHistory, undo, redo, clearHistory, canUndo, canRedo } = useHistory({
+    nodes,
+    connections,
+    shapes,
+    setNodes,
+    setConnections,
+    setShapes
+  });
+
+  useEffect(() => {
+    // Clear history when project changes
+    clearHistory();
+  }, [currentProjectId, clearHistory]);
 
   // Refs for interactions
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -503,6 +518,8 @@ function App() {
           opacity: 1,
           points: normalizedPoints
         });
+
+        addToHistory();
       }
 
       // Clear drawing state
@@ -538,6 +555,7 @@ function App() {
               opacity: 1
             });
             setCurrentTool('select');
+            addToHistory();
           }
         }
       } else {
@@ -549,6 +567,7 @@ function App() {
           const targetHandleId = handle.getAttribute('data-handle-id');
           if (targetId && targetHandleId) {
             completeLinking(targetId, targetHandleId);
+            addToHistory();
           }
         }
       }
@@ -572,6 +591,7 @@ function App() {
         setShapes(prev => prev.map(s => s.id === id ? { ...s, width: shape.width, height: shape.height, x: shape.x, y: shape.y } : s));
         updateHandleOffsets(id);
       }
+      addToHistory();
       resizingNodeRef.current = null;
     }
 
@@ -601,6 +621,7 @@ function App() {
 
       updateCanvasDisplay();
       updateHandleOffsets(id);
+      addToHistory();
     }
 
     try {
@@ -659,6 +680,7 @@ function App() {
       // Also remove all connections to/from this shape
       setConnections(prev => prev.filter(c => c.source.nodeId !== selectedShapeId && c.target.nodeId !== selectedShapeId));
       clearSelection();
+      addToHistory();
     }
   }, [selectedNodeId, selectedConnectionId, selectedShapeId, clearSelection, setNodes, setConnections, setShapes]);
 
@@ -685,6 +707,25 @@ function App() {
   const handlePointerDownNode = useCallback((id: string) => {
     selectNode(id);
   }, [selectNode]);
+
+  const handleToggleEditingWrapper = useCallback((id: string, isEditing: boolean) => {
+    handleToggleEditing(id, isEditing);
+    if (!isEditing) {
+      addToHistory();
+    }
+  }, [handleToggleEditing, addToHistory]);
+
+  const addTextNodeWrapper = useCallback(() => {
+    const id = addTextNode();
+    addToHistory();
+    return id;
+  }, [addTextNode, addToHistory]);
+
+  const addFileNodeWrapper = useCallback(async () => {
+    const id = await addFileNode();
+    if (id) addToHistory();
+    return id;
+  }, [addFileNode, addToHistory]);
 
   const unlinkNode = (nodeId: string) => {
     setConnections(prev => prev.filter(c => c.source.nodeId !== nodeId && c.target.nodeId !== nodeId));
@@ -759,6 +800,7 @@ function App() {
       }));
 
       setNodes(prev => [...prev, ...newNodes]);
+      addToHistory();
       return;
     }
 
@@ -785,6 +827,7 @@ function App() {
 
       const newNodes = await Promise.all(newNodePromises);
       setNodes(prev => [...prev, ...newNodes]);
+      addToHistory();
     }
   };
 
@@ -868,7 +911,7 @@ function App() {
             onHeaderPointerDown={handleNodeDragStart}
             onResizePointerDown={handleResizeStart}
             onContentChange={handleContentChange}
-            onToggleEditing={handleToggleEditing}
+            onToggleEditing={handleToggleEditingWrapper}
 
             onSync={syncNodeFromDisk}
             onRequestPermission={requestWritePermission}
@@ -971,6 +1014,10 @@ function App() {
         isSidebarOpen={isSidebarOpen}
         manifest={manifest}
         currentProjectId={currentProjectId}
+        undo={undo}
+        redo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
 
       <MainToolbar
@@ -978,8 +1025,8 @@ function App() {
         setCurrentTool={setCurrentTool}
         defaultLineType={defaultLineType}
         setDefaultLineType={setDefaultLineType}
-        addTextNode={addTextNode}
-        addFileNode={addFileNode}
+        addTextNode={addTextNodeWrapper}
+        addFileNode={addFileNodeWrapper}
       />
 
       <PropertiesToolbar
