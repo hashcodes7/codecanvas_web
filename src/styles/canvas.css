@@ -1,0 +1,124 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-main);
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+#root {
+    width: 100%;
+    height: 100vh;
+}
+
+/* Canvas Infrastructure */
+.canvas-viewport {
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--bg-main);
+    position: relative;
+    overflow: hidden;
+    touch-action: none;
+    /* Critical for custom gestures */
+}
+
+.canvas-transform-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* Changed from 0 to 100% to allow proper child positioning */
+    height: 100%;
+    transform-origin: 0 0;
+    will-change: transform;
+    pointer-events: none;
+    /* Let events pass through to viewport/nodes */
+}
+
+/* Background Patterns - Decoupled from node layer for performance */
+.canvas-background-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.canvas-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* Use CSS variables for ultra-smooth movement handled in JS */
+    background-position: var(--canvas-x, 0px) var(--canvas-y, 0px);
+    background-size: calc(var(--grid-size) * var(--canvas-scale, 1)) calc(var(--grid-size) * var(--canvas-scale, 1));
+}
+
+.canvas-background.grid {
+    background-image:
+        linear-gradient(rgba(var(--adapter-grid-rgb), var(--grid-opacity)) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(var(--adapter-grid-rgb), var(--grid-opacity)) 1px, transparent 1px);
+}
+
+.canvas-background.dots {
+    background-image: radial-gradient(rgba(var(--adapter-grid-rgb), var(--grid-opacity)) 1px, transparent 1px);
+}
+
+.canvas-background.lines {
+    background-image: linear-gradient(rgba(var(--adapter-grid-rgb), var(--grid-opacity)) 1px, transparent 1px);
+    background-size: 100% calc(var(--grid-size) * var(--canvas-scale, 1));
+}
+
+/* SVG Connection Layer */
+.canvas-svg-layer {
+    position: absolute;
+    top: -50000px;
+    left: -50000px;
+    width: 100000px;
+    height: 100000px;
+    pointer-events: none;
+    z-index: 3;
+    overflow: visible;
+}
+
+.connection-path {
+    fill: none;
+    stroke: var(--accent-primary);
+    stroke-width: 2px;
+    stroke-linecap: round;
+    transition: all 0.2s ease;
+    z-index: 3;
+    pointer-events: stroke;
+    cursor: pointer;
+}
+
+.connection-path:hover {
+    stroke: #fff;
+    stroke-width: 4px;
+}
+
+.connection-path.selected {
+    stroke: #fff;
+    filter: drop-shadow(0 0 5px var(--accent-primary));
+    z-index: 3;
+}
+
+.temp-connection {
+    fill: none;
+    stroke: var(--accent-primary);
+    stroke-width: 2px;
+    stroke-dasharray: 5, 5;
+    opacity: 0.6;
+    z-index: 2;
+}

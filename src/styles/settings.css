@@ -1,0 +1,117 @@
+/* Settings Menu */
+.settings-menu {
+    background: var(--bg-ui);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 8px;
+    min-width: 180px;
+    box-shadow: var(--shadow-ui);
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.settings-group {
+    margin-bottom: 12px;
+}
+
+.settings-row {
+    display: flex;
+    gap: 6px;
+    padding: 4px 8px;
+}
+
+.settings-label {
+    font-size: 0.75rem;
+    color: var(--text-subtle);
+    padding: 4px 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.settings-item {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    font-size: 0.875rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.settings-item.compact {
+    flex: 1;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 4px;
+    text-align: center;
+    justify-content: center;
+    font-size: 0.7rem;
+}
+
+.settings-item.compact i {
+    font-size: 1.25rem;
+}
+
+.settings-item:hover {
+    background: var(--bg-ui-hover);
+    color: var(--text-main);
+}
+
+.settings-item.active {
+    background: rgba(139, 92, 246, 0.2);
+    color: #8b5cf6;
+}
+
+.settings-item i {
+    font-size: 1.1rem;
+}
+
+/* Slider Styling */
+.settings-slider-container {
+    padding: 8px 12px;
+}
+
+.settings-slider {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    outline: none;
+    margin: 12px 0 8px 0;
+}
+
+.settings-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
+}
+
+.settings-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    background: #fff;
+}

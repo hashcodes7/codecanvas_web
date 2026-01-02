@@ -1,0 +1,397 @@
+/* Node Styling */
+.canvas-node {
+    position: absolute;
+    min-width: 300px;
+    background: var(--bg-node);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    box-shadow: var(--shadow-node);
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    z-index: 2;
+    user-select: none;
+    /* Auto-sizing Logic: 
+     Default to fit content but constrained 
+     If width/height logic is applied via inline styles, it overrides this. 
+  */
+    width: fit-content;
+    max-width: 600px;
+    max-height: 500px;
+    /* Reduced will-change list to prevent memory bloat on many nodes */
+    will-change: transform;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    pointer-events: auto;
+    /* Re-enable pointer events for nodes */
+}
+
+.canvas-node:hover {
+    border-color: var(--border-medium);
+}
+
+.canvas-node.selected {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 1px var(--accent-primary), 0 10px 40px rgba(139, 92, 246, 0.2);
+}
+
+.resize-handle {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 15px;
+    height: 15px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 50%, var(--accent-primary) 50%);
+    border-bottom-right-radius: 12px;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.canvas-node:hover .resize-handle,
+.canvas-node.selected .resize-handle {
+    opacity: 1;
+}
+
+.handle {
+    width: 10px;
+    height: 10px;
+    background-color: var(--accent-primary);
+    border-radius: 50%;
+    position: absolute;
+    cursor: crosshair;
+    z-index: 10;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 0 0 2px rgba(13, 17, 23, 0.8);
+    transform: scale(0);
+}
+
+.canvas-node:hover .handle,
+.shape-handle-container:hover .handle {
+    transform: scale(1);
+}
+
+.handle:hover {
+    transform: scale(1.5) !important;
+    background: #fff;
+    box-shadow: 0 0 10px var(--accent-primary);
+}
+
+.shape-handle-container {
+    border: 1px dashed transparent;
+    transition: border-color 0.2s;
+    pointer-events: auto;
+}
+
+.shape-handle-container:hover,
+.shape-handle-container.selected {
+    border-color: rgba(139, 92, 246, 0.5);
+}
+
+.shape-handle-container.selected .handle {
+    transform: scale(1);
+}
+
+/* Base handle positioning */
+.handle-left-mid {
+    left: -5px;
+    top: 50%;
+    transform: translateY(-50%) scale(0);
+    cursor: crosshair;
+}
+
+.handle-right-mid {
+    right: -5px;
+    top: 50%;
+    transform: translateY(-50%) scale(0);
+    cursor: crosshair;
+}
+
+.handle-top-mid {
+    top: -5px;
+    left: 50%;
+    transform: translateX(-50%) scale(0);
+    cursor: crosshair;
+}
+
+.handle-bottom-mid {
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%) scale(0);
+    cursor: crosshair;
+}
+
+.handle-top-left {
+    left: -5px;
+    top: -5px;
+    transform: scale(0);
+    cursor: nwse-resize;
+}
+
+.handle-top-right {
+    right: -5px;
+    top: -5px;
+    transform: scale(0);
+    cursor: nesw-resize;
+}
+
+.handle-bottom-left {
+    left: -5px;
+    bottom: -5px;
+    transform: scale(0);
+    cursor: nesw-resize;
+}
+
+.handle-bottom-right {
+    right: -5px;
+    bottom: -5px;
+    transform: scale(0);
+    cursor: nwse-resize;
+}
+
+.resize-sq {
+    border-radius: 5px !important;
+    width: 10px !important;
+    height: 10px !important;
+    background: var(--syn-string) !important;
+}
+
+/* Visibility triggers */
+.canvas-node:hover .handle,
+.shape-handle-container:hover .handle,
+.shape-handle-container.selected .handle {
+    transform: scale(1);
+}
+
+/* Ensure translations are preserved for mid-points */
+.canvas-node:hover .handle-left-mid,
+.shape-handle-container:hover .handle-left-mid,
+.shape-handle-container.selected .handle-left-mid,
+.canvas-node:hover .handle-right-mid,
+.shape-handle-container:hover .handle-right-mid,
+.shape-handle-container.selected .handle-right-mid {
+    transform: translateY(-50%) scale(1);
+}
+
+.canvas-node:hover .handle-top-mid,
+.shape-handle-container:hover .handle-top-mid,
+.shape-handle-container.selected .handle-top-mid,
+.canvas-node:hover .handle-bottom-mid,
+.shape-handle-container:hover .handle-bottom-mid,
+.shape-handle-container.selected .handle-bottom-mid {
+    transform: translateX(-50%) scale(1);
+}
+
+.node-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: move;
+}
+
+.node-title-container {
+    display: flex;
+    align-items: center;
+}
+
+.node-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    letter-spacing: 0.02em;
+}
+
+.node-content {
+    padding: 16px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-main);
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.node-content pre,
+.node-content textarea,
+.node-content code {
+    font-family: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+    margin: 0;
+    padding: 0;
+    border: none;
+    outline: none;
+}
+
+.node-content pre {
+    overflow: auto;
+    flex: 1;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    /* Ensure URLs/long words wrap */
+    word-break: break-word;
+    cursor: default;
+    user-select: none;
+}
+
+.code-editor-textarea,
+.text-node-input {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    color: var(--text-main);
+    resize: none;
+    flex: 1;
+    display: block;
+}
+
+.node-content code {
+    color: inherit;
+    display: block;
+}
+
+.uri-footer {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 11px;
+    color: var(--accent-primary);
+    opacity: 0.6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.uri-footer i {
+    font-size: 14px;
+}
+
+.sync-btn {
+    margin-left: auto;
+    padding: 4px 8px;
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 4px;
+    color: var(--accent-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.875rem;
+}
+
+.sync-btn:hover {
+    background: rgba(139, 92, 246, 0.2);
+    border-color: var(--accent-primary);
+    transform: scale(1.05);
+}
+
+.sync-btn i {
+    display: block;
+}
+
+/* Line Numbers Styling */
+.line-numbers {
+    display: flex;
+    flex-direction: column;
+    padding-right: 12px;
+    margin-right: 12px;
+    border-right: 1px solid var(--border-subtle);
+    text-align: right;
+    color: var(--text-muted);
+    user-select: none;
+}
+
+.line-numbers span {
+    font-size: 11px;
+}
+
+/* Text Node Specifics */
+.text-node {
+    min-width: 200px;
+    min-height: 150px;
+    border-left: 4px solid #fcd34d !important;
+}
+
+.text-node-input {
+    width: 100%;
+    height: 100%;
+    min-height: 100px;
+    background: transparent;
+    border: none;
+    color: #e2e8f0;
+    font-family: inherit;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    resize: none;
+    padding: 12px;
+    outline: none;
+}
+
+.text-node-input::placeholder {
+    color: #4b5563;
+}
+
+.node-header-icon {
+    margin-right: 8px;
+}
+
+.file-icon {
+    color: #a78bfa;
+}
+
+.text-icon {
+    color: #fcd34d;
+}
+
+.status-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.node-status-text {
+    font-size: 0.75rem;
+    font-weight: 500;
+    opacity: 0.8;
+}
+
+.node-status-icon {
+    font-size: 1rem;
+}
+
+.node-content-flex {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+}
+
+.node-empty-content {
+    padding: 20px;
+    color: #6b7280;
+    font-size: 0.875rem;
+    text-align: center;
+    width: 100%;
+}
+
+.node-empty-icon {
+    display: block;
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+}
+
+.sync-btn-request {
+    margin-left: 4px;
+    color: #94a3b8;
+}
+
+.sync-btn-save {
+    margin-left: 4px;
+    color: #10b981;
+}

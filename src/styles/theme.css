@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+
+:root {
+    --font-main: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    --font-mono: 'Fira Code', monospace;
+
+    /* Theme Tokens - Dark (Default) */
+    --bg-main: #0a0a0c;
+    --bg-node: rgba(20, 20, 25, 0.9);
+    --bg-ui: rgba(15, 23, 42, 0.95);
+    --bg-ui-hover: rgba(255, 255, 255, 0.1);
+    --bg-card: rgba(255, 255, 255, 0.03);
+
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-medium: rgba(255, 255, 255, 0.2);
+
+    --text-main: #f8fafc;
+    --text-subtle: #94a3b8;
+    --text-muted: #4b5563;
+
+    --accent-primary: #8b5cf6;
+    --accent-secondary: #3b82f6;
+    --accent-glow: rgba(139, 92, 246, 0.3);
+
+    --shadow-node: 0 10px 30px rgba(0, 0, 0, 0.5);
+    --shadow-ui: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+
+    --grid-size: 40px;
+    --grid-opacity: 0.07;
+    --adapter-grid-rgb: 255, 255, 255;
+
+    /* Custom Bootstrap Cursor for Select Tool (Mirrored to point top-left) */
+    --cursor-select: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='white' stroke='black' stroke-width='0.5' viewBox='0 0 16 16'%3E%3Cg transform='scale(-1, 1) translate(-16, 0)'%3E%3Cpath d='M14.082 2.182a.5.5 0 0 1 .103.557L8.528 15.467a.5.5 0 0 1-.917-.007L5.57 10.694.803 8.652a.5.5 0 0 1-.006-.916l12.728-5.657a.5.5 0 0 1 .557.103zM2.25 8.184l3.897 1.67a.5.5 0 0 1 .262.263l1.67 3.897L12.743 3.52 2.25 8.184z'/%3E%3C/g%3E%3C/svg%3E") 2 2, auto;
+
+    line-height: 1.5;
+    font-weight: 400;
+    color-scheme: dark;
+
+    /* Syntax Highlighting Tokens - Default (CodeCanvas) */
+    --syn-comment: #6272a4;
+    --syn-punctuation: #f8f8f2;
+    --syn-string: #f1fa8c;
+    --syn-keyword: #ff79c6;
+    --syn-function: #50fa7b;
+    --syn-operator: #ffb86c;
+    --syn-property: #bd93f9;
+    --syn-regex: #8be9fd;
+}
+
+[data-theme='light'] {
+    --bg-main: #f5f7f9;
+    /* Soft cool off-white for the abyss */
+    --bg-node: #ffffff;
+    /* Contrast white for nodes */
+    --bg-ui: rgba(255, 255, 255, 0.85);
+    /* Frosty UI layer */
+    --bg-ui-hover: rgba(139, 92, 246, 0.08);
+    /* Lavender-tinted hover */
+    --bg-card: #f8fafc;
+
+    --border-subtle: rgba(15, 23, 42, 0.06);
+    --border-medium: rgba(15, 23, 42, 0.1);
+
+    --text-main: #0f172a;
+    --text-subtle: #475569;
+    --text-muted: #94a3b8;
+
+    --adapter-grid-rgb: 0, 0, 0;
+
+    /* Premium soft shadows */
+    --shadow-node: 0 10px 40px -10px rgba(0, 0, 0, 0.1), 0 0 1px rgba(0, 0, 0, 0.05);
+    --shadow-ui: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+
+    color-scheme: light;
+}
+
+[data-theme='paper'] {
+    --bg-main: #f4edd8;
+    /* Warm parchment bg */
+    --bg-node: #fffdf5;
+    /* Bright paper for nodes */
+    --bg-ui: rgba(250, 245, 230, 0.9);
+    /* Opaque warm UI */
+    --bg-ui-hover: rgba(139, 92, 246, 0.1);
+    --bg-card: #fffdf5;
+
+    --border-subtle: rgba(67, 52, 34, 0.1);
+    --border-medium: rgba(67, 52, 34, 0.15);
+
+    --text-main: #433422;
+    /* Ink-like warm brown/gray */
+    --text-subtle: #736b5e;
+    --text-muted: #a39c91;
+
+    --adapter-grid-rgb: 67, 52, 34;
+    --shadow-node: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-ui: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+    color-scheme: light;
+}
+
+/* Syntax Themes */
+[data-syntax-theme='monokai'] {
+    --syn-comment: #75715e;
+    --syn-punctuation: #f8f8f2;
+    --syn-string: #e6db74;
+    --syn-keyword: #f92672;
+    --syn-function: #a6e22e;
+    --syn-operator: #f8f8f2;
+    --syn-property: #66d9ef;
+    --syn-regex: #fd971f;
+}
+
+[data-syntax-theme='nord'] {
+    --syn-comment: #616e88;
+    --syn-punctuation: #81a1c1;
+    --syn-string: #a3be8c;
+    --syn-keyword: #81a1c1;
+    --syn-function: #88c0d0;
+    --syn-operator: #81a1c1;
+    --syn-property: #d08770;
+    --syn-regex: #ebcb8b;
+}
+
+[data-syntax-theme='solarized'] {
+    --syn-comment: #93a1a1;
+    --syn-punctuation: #586e75;
+    --syn-string: #2aa198;
+    --syn-keyword: #859900;
+    --syn-function: #268bd2;
+    --syn-operator: #657b83;
+    --syn-property: #b58900;
+    --syn-regex: #cb4b16;
+}
+
+[data-syntax-theme='ink'] {
+    --syn-comment: #a39c91;
+    --syn-punctuation: #433422;
+    --syn-string: #228b22;
+    --syn-keyword: #a52a2a;
+    --syn-function: #00008b;
+    --syn-operator: #433422;
+    --syn-property: #8b4513;
+    --syn-regex: #ff4500;
+}

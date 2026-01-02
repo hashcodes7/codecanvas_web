@@ -9,42 +9,9 @@ import InteractiveCanvas from './components/InteractiveCanvas';
 import { getPathData, computeHandlePositions } from './utils/canvasUtils';
 import { getLanguageFromFilename } from './utils/fileUtils';
 import { activateSymbols, addGenericHandlesToCode } from './utils/codeUtils';
+import ConnectionLine from './components/Canvas/connectionline';
+import ShapeHandles from './components/Shapes/shapehandles';
 
-const ConnectionLine = memo(({
-  conn,
-  isSelected,
-  startX,
-  startY,
-  endX,
-  endY,
-  onSelect
-}: {
-  conn: Connection,
-  isSelected: boolean,
-  startX: number,
-  startY: number,
-  endX: number,
-  endY: number,
-  onSelect: (id: string) => void
-}) => {
-  return (
-    <path
-      id={`path-${conn.id}`}
-      d={getPathData(startX, startY, endX, endY)}
-      className={`connection-path ${isSelected ? 'selected' : ''}`}
-      style={{
-        stroke: conn.style?.color || 'var(--accent-primary)',
-        strokeWidth: isSelected ? (conn.style?.width || 2) + 2 : (conn.style?.width || 2)
-      }}
-      markerEnd={conn.type === 'arrow' || conn.type === 'bi-arrow' ? "url(#arrowhead)" : ""}
-      markerStart={conn.type === 'bi-arrow' ? "url(#arrowhead-start)" : ""}
-      onPointerDown={(e) => {
-        e.stopPropagation();
-        onSelect(conn.id);
-      }}
-    />
-  );
-});
 
 const CanvasNode = memo(({
   node,
@@ -125,24 +92,18 @@ const CanvasNode = memo(({
         onPointerDown={(e) => onHeaderPointerDown(node.id, e)}
       >
         <div className="node-title-container">
-          {node.type === 'file' && <i className="bi bi-file-earmark-code" style={{ marginRight: '8px', color: '#a78bfa' }}></i>}
-          {node.type === 'text' && <i className="bi bi-sticky" style={{ marginRight: '8px', color: '#fcd34d' }}></i>}
+          {node.type === 'file' && <i className="bi bi-file-earmark-code node-header-icon file-icon"></i>}
+          {node.type === 'text' && <i className="bi bi-sticky node-header-icon text-icon"></i>}
           <span className="node-title">{node.title}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{
-            fontSize: '0.75rem',
-            color: status.color,
-            fontWeight: 500,
-            opacity: 0.8
-          }}>
+        <div className="status-container">
+          <span className="node-status-text" style={{ color: status.color }}>
             {status.text}
           </span>
           <i
-            className={`bi ${status.icon} ${status.animate ? 'animate-pulse' : ''}`}
+            className={`bi ${status.icon} ${status.animate ? 'animate-pulse' : ''} node-status-icon`}
             style={{
               color: status.color,
-              fontSize: '1rem',
               animation: status.animate ? 'pulse 1.5s infinite' : 'none'
             }}
           />
@@ -170,7 +131,7 @@ const CanvasNode = memo(({
             </pre>
           )
         ) : (
-          <div style={{ display: 'flex', flex: 1, minWidth: 0 }}>
+          <div className="node-content-flex">
             {node.content !== undefined ? (
               <>
                 <div className="line-numbers">
@@ -204,8 +165,8 @@ const CanvasNode = memo(({
                 )}
               </>
             ) : (
-              <div style={{ padding: '20px', color: '#6b7280', fontSize: '0.875rem', textAlign: 'center', width: '100%' }}>
-                <i className="bi bi-cloud-download" style={{ display: 'block', fontSize: '1.5rem', marginBottom: '8px' }}></i>
+              <div className="node-empty-content">
+                <i className="bi bi-cloud-download node-empty-icon"></i>
                 Content not loaded from system
               </div>
             )}
@@ -228,25 +189,23 @@ const CanvasNode = memo(({
 
             {!node.hasWritePermission ? (
               <button
-                className="sync-btn"
+                className="sync-btn sync-btn-request"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRequestPermission(node.id);
                 }}
                 title="Request Edit Permission"
-                style={{ marginLeft: '4px', color: '#94a3b8' }}
               >
                 <i className="bi bi-pencil"></i>
               </button>
             ) : (
               <button
-                className="sync-btn"
+                className="sync-btn sync-btn-save"
                 onClick={(e) => {
                   e.stopPropagation();
                   onSave(node.id, node.content || '');
                 }}
                 title="Save to Disk"
-                style={{ marginLeft: '4px', color: '#10b981' }}
               >
                 <i className="bi bi-save"></i>
               </button>
@@ -265,54 +224,11 @@ const CanvasNode = memo(({
         className="resize-handle"
         onPointerDown={(e) => onResizePointerDown(node.id, e, 'bottom-right')}
       />
-    </div>
+    </div >
   );
 });
 
-const ShapeHandles = memo(({
-  shape,
-  isSelected,
-  onPointerDown,
-  onResizePointerDown,
-  updateHandleOffsets
-}: {
-  shape: ShapeData,
-  isSelected: boolean,
-  onPointerDown: (nodeId: string, handleId: string) => void,
-  onResizePointerDown: (id: string, e: React.PointerEvent, direction: string) => void,
-  updateHandleOffsets: (id?: string) => void
-}) => {
-  useEffect(() => {
-    updateHandleOffsets(shape.id);
-  }, [shape.id, shape.width, shape.height, updateHandleOffsets]);
 
-  return (
-    <div
-      className={`shape-handle-container ${isSelected ? 'selected' : ''}`}
-      id={`handles-${shape.id}`}
-      style={{
-        left: shape.x,
-        top: shape.y,
-        width: shape.width,
-        height: shape.height,
-        position: 'absolute',
-        zIndex: 5
-      }}
-    >
-      {/* Corner Resize Handles (Squares) */}
-      <div className="handle handle-top-left resize-sq" onPointerDown={(e) => onResizePointerDown(shape.id, e, 'top-left')}></div>
-      <div className="handle handle-top-right resize-sq" onPointerDown={(e) => onResizePointerDown(shape.id, e, 'top-right')}></div>
-      <div className="handle handle-bottom-left resize-sq" onPointerDown={(e) => onResizePointerDown(shape.id, e, 'bottom-left')}></div>
-      <div className="handle handle-bottom-right resize-sq" onPointerDown={(e) => onResizePointerDown(shape.id, e, 'bottom-right')}></div>
-
-      {/* Mid-point Connection Handles (Circles) */}
-      <div className="handle handle-left-mid" data-handle-id="left-mid" onPointerDown={(e) => { e.stopPropagation(); onPointerDown(shape.id, 'left-mid'); }}></div>
-      <div className="handle handle-right-mid" data-handle-id="right-mid" onPointerDown={(e) => { e.stopPropagation(); onPointerDown(shape.id, 'right-mid'); }}></div>
-      <div className="handle handle-top-mid" data-handle-id="top-mid" onPointerDown={(e) => { e.stopPropagation(); onPointerDown(shape.id, 'top-mid'); }}></div>
-      <div className="handle handle-bottom-mid" data-handle-id="bottom-mid" onPointerDown={(e) => { e.stopPropagation(); onPointerDown(shape.id, 'bottom-mid'); }}></div>
-    </div>
-  );
-});
 
 function App() {
   // --- Project System Initialization ---
@@ -1671,7 +1587,7 @@ function App() {
           </div>
 
           <div className="project-list-container">
-            <div className="settings-label" style={{ paddingLeft: 0, marginBottom: '12px' }}>Your Canvases</div>
+            <div className="settings-label sidebar-label">Your Canvases</div>
             {manifest.map(p => (
               <div
                 key={p.id}
@@ -1697,12 +1613,11 @@ function App() {
                     onKeyDown={(e) => e.key === 'Enter' && setEditingProjectId(null)}
                   />
                 ) : (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="project-item-header">
                     <div className="project-item-name">{p.name}</div>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                    <div className="project-item-actions">
                       <button
-                        className="toolbar-btn"
-                        style={{ width: '24px', height: '24px', fontSize: '0.8rem' }}
+                        className="toolbar-btn project-action-btn"
                         onClick={(e) => {
                           e.stopPropagation();
                           setEditingProjectId(p.id);
@@ -1712,8 +1627,7 @@ function App() {
                         <i className="bi bi-pencil"></i>
                       </button>
                       <button
-                        className="toolbar-btn danger"
-                        style={{ width: '24px', height: '24px', fontSize: '0.8rem' }}
+                        className="toolbar-btn danger project-action-btn"
                         onClick={async (e) => {
                           e.stopPropagation();
 
@@ -1811,17 +1725,7 @@ function App() {
         <button className="control-btn" onClick={resetTransform}>⟲</button>
       </div>
       {!isSidebarOpen && (
-        <div className="glass-container" style={{
-          position: 'fixed',
-          top: '24px',
-          left: '60px',
-          padding: '12px 20px',
-          color: '#a78bfa',
-          fontSize: '0.875rem',
-          fontWeight: 500,
-          pointerEvents: 'none',
-          zIndex: 100
-        }}>
+        <div className="glass-container canvas-info-glass">
           {manifest.find(m => m.id === currentProjectId)?.name} • {Math.round(scale * 100)}%
         </div>
       )}
@@ -1939,7 +1843,7 @@ function App() {
                     <button
                       key={color.value}
                       className={`color-swatch-btn ${isActive ? 'active' : ''}`}
-                      style={{ backgroundColor: color.value === 'var(--accent-primary)' ? '#8b5cf6' : color.value }}
+                      style={{ backgroundColor: color.value.startsWith('var') ? (color.value === 'var(--accent-primary)' ? '#8b5cf6' : color.value) : color.value }}
                       onClick={() => updateSelectedObjectStyle({ color: color.value })}
                       title={color.name}
                     />
@@ -1982,12 +1886,11 @@ function App() {
         </div>
       )}
 
-      <div className="top-right-controls" onPointerDown={(e) => e.stopPropagation()} style={{ pointerEvents: 'auto' }}>
+      <div className="top-right-controls pointer-auto" onPointerDown={(e) => e.stopPropagation()}>
         <button
-          className={`control-btn ${showSettings ? 'active' : ''}`}
+          className={`control-btn pointer-auto ${showSettings ? 'active' : ''}`}
           onClick={() => setShowSettings(!showSettings)}
           title="Settings"
-          style={{ pointerEvents: 'auto' }}
         >
           <i className={`bi ${showSettings ? 'bi-gear-fill' : 'bi-gear'}`}></i>
         </button>
@@ -2034,7 +1937,7 @@ function App() {
                   onChange={(e) => setBackgroundOpacity(parseFloat(e.target.value))}
                   onPointerDown={(e) => e.stopPropagation()}
                 />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#64748b' }}>
+                <div className="flex-between" style={{ fontSize: '0.65rem', color: '#64748b' }}>
                   <span>Min</span>
                   <span>{Math.round(backgroundOpacity * 100 / 1.4)}%</span>
                   <span>Max</span>
@@ -2071,17 +1974,17 @@ function App() {
               </div>
             </div>
 
-            <div className="toolbar-divider" style={{ margin: '4px 0', width: '100%', height: '1px' }}></div>
+            <div className="toolbar-divider divider-horizontal"></div>
 
             <div className="settings-group">
               <div className="settings-label">Syntax Theme</div>
-              <div className="settings-row" style={{ flexWrap: 'wrap' }}>
+              <div className="settings-row flex-wrap">
                 <button
                   className={`settings-item compact ${syntaxTheme === 'classic' ? 'active' : ''}`}
                   onClick={() => setSyntaxTheme('classic')}
                   title="Classic CodeCanvas"
                 >
-                  <div className="theme-preview" style={{ background: '#ff79c6', width: '12px', height: '12px', borderRadius: '2px' }}></div>
+                  <div className="theme-preview theme-preview-box" style={{ background: '#ff79c6' }}></div>
                   Classic
                 </button>
                 <button
@@ -2089,7 +1992,7 @@ function App() {
                   onClick={() => setSyntaxTheme('monokai')}
                   title="Vibrant Monokai"
                 >
-                  <div className="theme-preview" style={{ background: '#f92672', width: '12px', height: '12px', borderRadius: '2px' }}></div>
+                  <div className="theme-preview theme-preview-box" style={{ background: '#f92672' }}></div>
                   Monokai
                 </button>
                 <button
@@ -2097,7 +2000,7 @@ function App() {
                   onClick={() => setSyntaxTheme('nord')}
                   title="Arctic Nord"
                 >
-                  <div className="theme-preview" style={{ background: '#81a1c1', width: '12px', height: '12px', borderRadius: '2px' }}></div>
+                  <div className="theme-preview theme-preview-box" style={{ background: '#81a1c1' }}></div>
                   Nord
                 </button>
                 <button
@@ -2105,7 +2008,7 @@ function App() {
                   onClick={() => setSyntaxTheme('solarized')}
                   title="Solarized Contrast"
                 >
-                  <div className="theme-preview" style={{ background: '#859900', width: '12px', height: '12px', borderRadius: '2px' }}></div>
+                  <div className="theme-preview theme-preview-box" style={{ background: '#859900' }}></div>
                   Solarized
                 </button>
                 <button
@@ -2113,7 +2016,7 @@ function App() {
                   onClick={() => setSyntaxTheme('ink')}
                   title="Ink-on-Paper"
                 >
-                  <div className="theme-preview" style={{ background: '#433422', width: '12px', height: '12px', borderRadius: '2px' }}></div>
+                  <div className="theme-preview theme-preview-box" style={{ background: '#433422' }}></div>
                   Ink
                 </button>
               </div>
