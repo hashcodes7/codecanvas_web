@@ -16,7 +16,7 @@ export interface NodeData {
 
 export interface ShapeData {
     id: string;
-    type: 'rectangle' | 'ellipse' | 'diamond' | 'arrow';
+    type: 'rectangle' | 'ellipse' | 'diamond' | 'arrow' | 'pencil';
     x: number;
     y: number;
     width: number;
@@ -25,7 +25,8 @@ export interface ShapeData {
     fillColor: string;
     strokeWidth: number;
     opacity: number;
-    roughness?: number; // Kept for compatibility if needed, but usually 0 for clean
+    roughness?: number;
+    points?: number[][]; // For pencil: [x, y, pressure] normalized 0-1
 }
 
 export interface Connection {

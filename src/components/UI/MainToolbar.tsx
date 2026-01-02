@@ -1,8 +1,8 @@
 import React from 'react';
 
 interface MainToolbarProps {
-    currentTool: 'select' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow';
-    setCurrentTool: (tool: 'select' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow') => void;
+    currentTool: 'select' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow' | 'pencil';
+    setCurrentTool: (tool: 'select' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow' | 'pencil') => void;
     defaultLineType: 'line' | 'arrow' | 'bi-arrow';
     setDefaultLineType: (type: 'line' | 'arrow' | 'bi-arrow') => void;
     addTextNode: () => void;
@@ -54,6 +54,13 @@ const MainToolbar: React.FC<MainToolbarProps> = ({
                     title="Arrow"
                 >
                     <i className="bi bi-arrow-up-right"></i>
+                </button>
+                <button
+                    className={`toolbar-btn ${currentTool === 'pencil' ? 'active' : ''}`}
+                    onClick={() => setCurrentTool('pencil')}
+                    title="Pencil (Freehand Drawing)"
+                >
+                    <i className="bi bi-pencil"></i>
                 </button>
             </div>
 

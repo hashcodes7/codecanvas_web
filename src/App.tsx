@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './index.css';
 import { FileStorage } from './storage';
 import { FileNodeService } from './FileNodeService';
-import type { NodeData } from './types';
+import type { NodeData, ShapeData } from './types';
 import StaticCanvas from './components/Canvas/StaticCanvas';
 import InteractiveCanvas from './components/Canvas/InteractiveCanvas';
 import { getPathData } from './utils/canvasUtils';
@@ -131,9 +131,13 @@ function App() {
   const [isPanning, setIsPanning] = useState(false);
   const [isInteracting, setIsInteracting] = useState(false);
 
-  const [currentTool, setCurrentTool] = useState<'select' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow'>('select');
+  const [currentTool, setCurrentTool] = useState<'select' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow' | 'pencil'>('select');
   const [showSettings, setShowSettings] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Freehand drawing state
+  const drawingPointsRef = useRef<number[][]>([]);
+  const [activeFreehandShape, setActiveFreehandShape] = useState<ShapeData | null>(null);
 
   usePersistence({
     currentProjectId,
@@ -281,7 +285,34 @@ function App() {
     }
 
     if (e.button === 0 && !draggingNodeId.current) {
-      if (currentTool !== 'select') {
+      if (currentTool === 'pencil') {
+        // Start freehand drawing
+        setIsPanning(false);
+        const rect = viewportRef.current?.getBoundingClientRect();
+        if (rect) {
+          const x = (e.clientX - rect.left - offsetRef.current.x) / scaleRef.current;
+          const y = (e.clientY - rect.top - offsetRef.current.y) / scaleRef.current;
+          const pressure = (e as any).pressure || 0.5;
+
+          drawingPointsRef.current = [[x, y, pressure]];
+          setActiveFreehandShape({
+            id: 'temp-drawing',
+            type: 'pencil',
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            strokeColor: theme === 'dark' ? '#d1d5db' : '#374151',
+            fillColor: 'transparent',
+            strokeWidth: 2,
+            opacity: 1,
+            points: drawingPointsRef.current
+          });
+          try {
+            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+          } catch (err) { console.warn('Failed to capture pointer'); }
+        }
+      } else if (currentTool !== 'select') {
         setIsPanning(false);
         const rect = viewportRef.current?.getBoundingClientRect();
         if (rect) {
@@ -296,18 +327,41 @@ function App() {
             targetY: y
           });
         }
+        try {
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        } catch (err) { console.warn('Failed to capture pointer'); }
       } else {
         setIsPanning(true);
+        try {
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        } catch (err) { console.warn('Failed to capture pointer'); }
       }
 
       lastMousePos.current = { x: e.clientX, y: e.clientY };
-      try {
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      } catch (err) { console.warn('Failed to capture pointer'); }
     }
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    // Handle freehand drawing
+    if (activeFreehandShape) {
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (rect) {
+        const x = (e.clientX - rect.left - offsetRef.current.x) / scaleRef.current;
+        const y = (e.clientY - rect.top - offsetRef.current.y) / scaleRef.current;
+        const pressure = (e as any).pressure || 0.5;
+
+        // Append point to drawing
+        drawingPointsRef.current.push([x, y, pressure]);
+
+        // Update state to trigger re-render
+        setActiveFreehandShape(prev => prev ? {
+          ...prev,
+          points: [...drawingPointsRef.current]
+        } : null);
+      }
+      return;
+    }
+
     if (linkingState) {
       updateLinking(e);
       return;
@@ -407,6 +461,57 @@ function App() {
   const handlePointerUp = (e: React.PointerEvent) => {
     setIsPanning(false);
     setIsInteracting(false);
+
+    // Complete freehand drawing
+    if (activeFreehandShape) {
+      const points = drawingPointsRef.current;
+      if (points.length > 2) {
+        // Calculate bounding box
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        points.forEach(p => {
+          if (p[0] < minX) minX = p[0];
+          if (p[1] < minY) minY = p[1];
+          if (p[0] > maxX) maxX = p[0];
+          if (p[1] > maxY) maxY = p[1];
+        });
+
+        const width = maxX - minX;
+        const height = maxY - minY;
+
+        // Normalize points to 0-1 range for resize compatibility
+        const safeWidth = width || 1;
+        const safeHeight = height || 1;
+
+        const normalizedPoints = points.map(p => [
+          (p[0] - minX) / safeWidth,
+          (p[1] - minY) / safeHeight,
+          p[2]
+        ]);
+
+        // Add as permanent shape
+        addShape({
+          id: `shape-${Date.now()}`,
+          type: 'pencil',
+          x: minX,
+          y: minY,
+          width: width,
+          height: height,
+          strokeColor: activeFreehandShape.strokeColor,
+          fillColor: 'transparent',
+          strokeWidth: activeFreehandShape.strokeWidth,
+          opacity: 1,
+          points: normalizedPoints
+        });
+      }
+
+      // Clear drawing state
+      setActiveFreehandShape(null);
+      drawingPointsRef.current = [];
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch (err) { }
+      return;
+    }
 
     if (linkingState) {
       if (linkingState.sourceNodeId === 'drawing') {
@@ -677,6 +782,23 @@ function App() {
       <StaticCanvas
         ref={staticCanvasRef}
         shapes={shapes}
+        scale={scale}
+        offset={offset}
+      />
+
+      <InteractiveCanvas
+        ref={interactiveCanvasRef}
+        activeShape={activeFreehandShape || (linkingState && linkingState.sourceNodeId === 'drawing' ? {
+          type: linkingState.sourceHandleId as any,
+          x: Math.min(linkingState.startX, linkingState.targetX),
+          y: Math.min(linkingState.startY, linkingState.targetY),
+          width: Math.abs(linkingState.startX - linkingState.targetX),
+          height: Math.abs(linkingState.startY - linkingState.targetY),
+          strokeColor: theme === 'dark' ? '#8b5cf6' : '#6366f1',
+          fillColor: 'rgba(139, 92, 246, 0.1)',
+          strokeWidth: 2,
+          opacity: 1
+        } : null)}
         scale={scale}
         offset={offset}
       />

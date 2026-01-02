@@ -1,3 +1,4 @@
+import { getStroke } from 'perfect-freehand';
 import type { ShapeData } from '../types';
 
 export class ShapeRenderer {
@@ -30,8 +31,57 @@ export class ShapeRenderer {
             case 'arrow':
                 this.drawArrow(ctx, x, y, x + width, y + height);
                 break;
+            case 'pencil':
+                if (shape.points && shape.points.length > 0) {
+                    let points: number[][];
+
+                    // Check if this is a temporary drawing shape (absolute coords)
+                    // or a saved shape (normalized coords)
+                    const isNormalized = shape.id !== 'temp-drawing';
+
+                    if (isNormalized) {
+                        // Denormalize points from 0-1 range to actual pixel coordinates
+                        points = shape.points.map(p => [
+                            x + p[0] * width,
+                            y + p[1] * height,
+                            p[2] || 0.5
+                        ]);
+                    } else {
+                        // Points are already in absolute coordinates (temp drawing)
+                        points = shape.points.map(p => [
+                            p[0],
+                            p[1],
+                            p[2] || 0.5
+                        ]);
+                    }
+
+                    // Use perfect-freehand to generate smooth stroke outline
+                    const outline = getStroke(points, {
+                        size: shape.strokeWidth * 2,
+                        thinning: 0.5,
+                        smoothing: 0.5,
+                        streamline: 0.5,
+                        simulatePressure: true
+                    });
+
+                    // Draw the outline as a filled polygon
+                    if (outline.length > 0) {
+                        ctx.fillStyle = shape.strokeColor;
+                        ctx.beginPath();
+                        ctx.moveTo(outline[0][0], outline[0][1]);
+                        for (let i = 1; i < outline.length; i++) {
+                            ctx.lineTo(outline[i][0], outline[i][1]);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                }
+                // Don't stroke/fill for pencil - already handled above
+                ctx.restore();
+                return;
         }
 
+        // Standard shapes: fill and stroke
         if (shape.fillColor !== 'transparent') {
             ctx.fill();
         }
