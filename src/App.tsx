@@ -3,18 +3,15 @@ import './index.css';
 import { FileStorage } from './storage';
 import { FileNodeService } from './FileNodeService';
 import type { NodeData } from './types';
-import { INITIAL_NODES, STORAGE_KEYS } from './constants';
-import StaticCanvas from './components/StaticCanvas';
-import InteractiveCanvas from './components/InteractiveCanvas';
+import StaticCanvas from './components/Canvas/StaticCanvas';
+import InteractiveCanvas from './components/Canvas/InteractiveCanvas';
 import { getPathData } from './utils/canvasUtils';
-import ConnectionLine from './components/Canvas/connectionline';
-import CanvasNode from './components/CanvasNode';
+import CanvasNode from './components/objects/Nodes/CanvasNode';
 import Sidebar from './components/UI/Sidebar';
 import MainToolbar from './components/UI/MainToolbar';
 import PropertiesToolbar from './components/UI/PropertiesToolbar';
 import SettingsMenu from './components/UI/SettingsMenu';
 import CanvasControls from './components/UI/CanvasControls';
-import ShapeHandles from './components/Shapes/shapehandles';
 import { useProjectManager } from './hooks/useProjectManager';
 import { useCanvasTransform } from './hooks/useCanvasTransform';
 import { useNodes } from './hooks/useNodes';
@@ -23,6 +20,8 @@ import { useShapes } from './hooks/useShapes';
 import { useSelection } from './hooks/useSelection';
 import { useGestures } from './hooks/useGestures';
 import { usePersistence } from './hooks/usePersistence';
+import ShapeHandles from './components/objects/Shapes/ShapeHandles';
+import ConnectionLine from './components/objects/ConnectionLine';
 
 
 

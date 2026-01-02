@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, memo, useMemo } from 'react';
-import type { NodeData } from '../types';
-import { getLanguageFromFilename } from '../utils/fileUtils';
-import { activateSymbols, addGenericHandlesToCode } from '../utils/codeUtils';
+import type { NodeData } from '../../../types';
+import { getLanguageFromFilename } from '../../../utils/fileUtils';
+import { activateSymbols, addGenericHandlesToCode } from '../../../utils/codeUtils';
 
 interface CanvasNodeProps {
     node: NodeData;

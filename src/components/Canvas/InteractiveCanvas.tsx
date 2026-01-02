@@ -1,6 +1,6 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
-import type { ShapeData } from '../types';
-import { ShapeRenderer } from '../utils/ShapeRenderer';
+import type { ShapeData } from '../../types';
+import { ShapeRenderer } from '../../utils/ShapeRenderer';
 
 interface InteractiveCanvasProps {
     activeShape: Partial<ShapeData> | null;
