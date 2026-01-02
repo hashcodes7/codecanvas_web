@@ -11,6 +11,12 @@ interface InteractiveCanvasProps {
 const InteractiveCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number }, scale: number) => void }, InteractiveCanvasProps>(
     ({ activeShape, scale, offset }, ref) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
+        const activeShapeRef = useRef<Partial<ShapeData> | null>(activeShape);
+
+        // Sync ref with prop (for initial state and cleanup)
+        useEffect(() => {
+            activeShapeRef.current = activeShape;
+        }, [activeShape]);
 
         const draw = useCallback((currentOffset: { x: number, y: number }, currentScale: number) => {
             const canvas = canvasRef.current;
@@ -24,14 +30,15 @@ const InteractiveCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: n
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-            if (activeShape) {
+            // Read from ref for instant updates during drawing
+            if (activeShapeRef.current) {
                 ctx.translate(currentOffset.x, currentOffset.y);
                 ctx.scale(currentScale, currentScale);
                 // Draw a preview of the shape being drawn/dragged
-                ShapeRenderer.drawShape(ctx, activeShape as ShapeData);
+                ShapeRenderer.drawShape(ctx, activeShapeRef.current as ShapeData);
             }
             ctx.restore();
-        }, [activeShape]);
+        }, []); // No dependencies - reads from ref
 
         useImperativeHandle(ref, () => ({
             syncTransform: (newOffset, newScale) => {

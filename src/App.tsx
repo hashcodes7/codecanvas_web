@@ -353,10 +353,11 @@ function App() {
         // Append point to drawing
         drawingPointsRef.current.push([x, y, pressure]);
 
-        // Update state to trigger re-render
+        // Update state with new points reference (triggers re-render for preview)
+        // Performance: We only update the reference, not copy the array
         setActiveFreehandShape(prev => prev ? {
           ...prev,
-          points: [...drawingPointsRef.current]
+          points: drawingPointsRef.current  // Reference, not copy!
         } : null);
       }
       return;
@@ -427,32 +428,32 @@ function App() {
       const shape = shapesRef.current.find(s => s.id === id);
 
       if (node) {
-        // Update ref immediately for instant visual feedback
+        // Update ref for canvas rendering
         node.x += dX_canvas;
         node.y += dY_canvas;
 
-        // Also update React state to keep everything in sync
-        setNodes(prev => prev.map(n => n.id === id ? {
-          ...n,
-          x: n.x + dX_canvas,
-          y: n.y + dY_canvas
-        } : n));
+        // Manual DOM update for instant feedback (no React re-render during drag)
+        const el = document.getElementById(node.id);
+        if (el) {
+          el.style.left = `${node.x}px`;
+          el.style.top = `${node.y}px`;
+        }
 
         updateSVGLinesForNode(id);
       } else if (shape) {
-        // Update ref immediately for instant visual feedback
+        // Update ref for canvas rendering
         shape.x += dX_canvas;
         shape.y += dY_canvas;
 
-        // Also update React state to keep everything in sync
-        setShapes(prev => prev.map(s => s.id === id ? {
-          ...s,
-          x: s.x + dX_canvas,
-          y: s.y + dY_canvas
-        } : s));
+        // Manual DOM update for handles (no React re-render during drag)
+        const el = document.getElementById(`handles-${id}`);
+        if (el) {
+          el.style.left = `${shape.x}px`;
+          el.style.top = `${shape.y}px`;
+        }
 
         updateSVGLinesForNode(id);
-        updateCanvasDisplay(); // Force immediate canvas redraw with updated ref values
+        updateCanvasDisplay(); // Redraw static canvas with updated ref
       }
     }
     lastMousePos.current = { x: e.clientX, y: e.clientY };
@@ -578,10 +579,24 @@ function App() {
       const id = draggingNodeId.current;
       draggingNodeId.current = null;
 
-      // Mark node as dirty for potential file sync
       const node = nodesMapRef.current.get(id);
+      const shape = shapesRef.current.find(s => s.id === id);
+
       if (node) {
-        setNodes(prev => prev.map(n => n.id === id ? { ...n, isDirty: true } : n));
+        // Commit final position from ref to state
+        setNodes(prev => prev.map(n => n.id === id ? {
+          ...n,
+          x: node.x,
+          y: node.y,
+          isDirty: true
+        } : n));
+      } else if (shape) {
+        // Commit final position from ref to state
+        setShapes(prev => prev.map(s => s.id === id ? {
+          ...s,
+          x: shape.x,
+          y: shape.y
+        } : s));
       }
 
       updateCanvasDisplay();
