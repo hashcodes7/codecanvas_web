@@ -656,9 +656,31 @@ function App() {
       clearSelection();
     } else if (selectedShapeId) {
       setShapes(prev => prev.filter(s => s.id !== selectedShapeId));
+      // Also remove all connections to/from this shape
+      setConnections(prev => prev.filter(c => c.source.nodeId !== selectedShapeId && c.target.nodeId !== selectedShapeId));
       clearSelection();
     }
-  }, [selectedNodeId, selectedConnectionId, selectedShapeId, clearSelection]);
+  }, [selectedNodeId, selectedConnectionId, selectedShapeId, clearSelection, setNodes, setConnections, setShapes]);
+
+  // Keyboard shortcuts  
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Delete selected object with Delete or Backspace
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Don't delete if user is typing in a text input/textarea
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+          return;
+        }
+
+        e.preventDefault();
+        deleteSelected();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deleteSelected]);
 
   const handlePointerDownNode = useCallback((id: string) => {
     selectNode(id);
