@@ -140,6 +140,21 @@ function App() {
   const drawingPointsRef = useRef<number[][]>([]);
   const [activeFreehandShape, setActiveFreehandShape] = useState<ShapeData | null>(null);
 
+  // Default properties for new shapes
+  const [defaultShapeStyle, setDefaultShapeStyle] = useState({
+    strokeColor: '#d1d5db',
+    strokeWidth: 2,
+    opacity: 1
+  });
+
+  // Sync default color with theme
+  useEffect(() => {
+    setDefaultShapeStyle(prev => ({
+      ...prev,
+      strokeColor: theme === 'dark' ? '#d1d5db' : '#374151'
+    }));
+  }, [theme]);
+
   usePersistence({
     currentProjectId,
     nodes,
@@ -317,10 +332,10 @@ function App() {
             y: 0,
             width: 0,
             height: 0,
-            strokeColor: theme === 'dark' ? '#d1d5db' : '#374151',
+            strokeColor: defaultShapeStyle.strokeColor,
             fillColor: 'transparent',
-            strokeWidth: 2,
-            opacity: 1,
+            strokeWidth: defaultShapeStyle.strokeWidth,
+            opacity: defaultShapeStyle.opacity,
             points: drawingPointsRef.current
           });
           try {
@@ -549,10 +564,10 @@ function App() {
               y: Math.min(linkingState.startY, y2),
               width: w,
               height: h,
-              strokeColor: theme === 'dark' ? '#d1d5db' : '#374151',
+              strokeColor: defaultShapeStyle.strokeColor,
               fillColor: 'transparent',
-              strokeWidth: 2,
-              opacity: 1
+              strokeWidth: defaultShapeStyle.strokeWidth,
+              opacity: defaultShapeStyle.opacity
             });
             setCurrentTool('select');
             addToHistory();
@@ -1036,6 +1051,9 @@ function App() {
         updateSelectedObjectStyle={updateSelectedObjectStyle}
         connections={connections}
         shapes={shapes}
+        currentTool={currentTool}
+        defaultShapeStyle={defaultShapeStyle}
+        updateDefaultShapeStyle={setDefaultShapeStyle}
       />
 
       <SettingsMenu
