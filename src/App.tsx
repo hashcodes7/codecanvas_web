@@ -56,7 +56,7 @@ function App() {
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const transformLayerRef = useRef<HTMLDivElement>(null);
-  const staticCanvasRef = useRef<{ syncTransform: (offset: { x: number, y: number }, scale: number, selectedId: string | null) => void }>(null);
+  const staticCanvasRef = useRef<{ syncTransform: (offset: { x: number, y: number }, scale: number) => void }>(null);
   const interactiveCanvasRef = useRef<{ syncTransform: (offset: { x: number, y: number }, scale: number) => void }>(null);
 
   const {
@@ -172,7 +172,7 @@ function App() {
       transformLayerRef.current.style.transform = transform;
     }
     if (staticCanvasRef.current) {
-      staticCanvasRef.current.syncTransform(offsetRef.current, scaleRef.current, selectedShapeIdRef.current);
+      staticCanvasRef.current.syncTransform(offsetRef.current, scaleRef.current);
     }
     if (interactiveCanvasRef.current) {
       interactiveCanvasRef.current.syncTransform(offsetRef.current, scaleRef.current);
@@ -347,33 +347,58 @@ function App() {
           el.style.top = `${newY}px`;
         }
       } else if (shape) {
-        shape.x = newX; shape.y = newY; shape.width = newW; shape.height = newH;
-        const el = document.getElementById(`handles-${id}`);
-        if (el) {
-          el.style.width = `${newW}px`; el.style.height = `${newH}px`;
-          el.style.left = `${newX}px`; el.style.top = `${newY}px`;
-        }
+        // Update ref immediately for instant canvas drawing
+        shape.x = newX;
+        shape.y = newY;
+        shape.width = newW;
+        shape.height = newH;
+
+        // Update React state to trigger ShapeHandles re-render with new dimensions
+        setShapes(prev => prev.map(s => s.id === id ? {
+          ...s,
+          x: newX,
+          y: newY,
+          width: newW,
+          height: newH
+        } : s));
+
         updateCanvasDisplay();
       }
     } else if (draggingNodeId.current) {
       const dX_canvas = dx / scaleRef.current;
       const dY_canvas = dy / scaleRef.current;
-      const node = nodesMapRef.current.get(draggingNodeId.current);
-      const shape = shapesRef.current.find(s => s.id === draggingNodeId.current);
+      const id = draggingNodeId.current;
+
+      const node = nodesMapRef.current.get(id);
+      const shape = shapesRef.current.find(s => s.id === id);
 
       if (node) {
+        // Update ref immediately for instant visual feedback
         node.x += dX_canvas;
         node.y += dY_canvas;
-        const el = document.getElementById(node.id);
-        if (el) { el.style.left = `${node.x}px`; el.style.top = `${node.y}px`; }
-        updateSVGLinesForNode(node.id);
+
+        // Also update React state to keep everything in sync
+        setNodes(prev => prev.map(n => n.id === id ? {
+          ...n,
+          x: n.x + dX_canvas,
+          y: n.y + dY_canvas
+        } : n));
+
+        updateSVGLinesForNode(id);
       } else if (shape) {
+        // Update ref immediately for instant visual feedback
         shape.x += dX_canvas;
         shape.y += dY_canvas;
-        const el = document.getElementById(`handles-${shape.id}`);
-        if (el) { el.style.left = `${shape.x}px`; el.style.top = `${shape.y}px`; }
-        updateSVGLinesForNode(shape.id);
-        updateCanvasDisplay();
+
+        // Also update React state to keep everything in sync
+        setShapes(prev => prev.map(s => s.id === id ? {
+          ...s,
+          x: s.x + dX_canvas,
+          y: s.y + dY_canvas
+        } : s));
+
+        updateSVGLinesForNode(id);
+        updateCanvasDisplay(); // Force immediate canvas redraw with updated ref values
       }
     }
     lastMousePos.current = { x: e.clientX, y: e.clientY };
@@ -447,14 +472,13 @@ function App() {
     if (draggingNodeId.current) {
       const id = draggingNodeId.current;
       draggingNodeId.current = null;
-      const node = nodesMapRef.current.get(id);
-      const shape = shapesRef.current.find(s => s.id === id);
 
+      // Mark node as dirty for potential file sync
+      const node = nodesMapRef.current.get(id);
       if (node) {
-        setNodes(prev => prev.map(n => n.id === id ? { ...n, x: node.x, y: node.y, isDirty: true } : n));
-      } else if (shape) {
-        setShapes(prev => prev.map(s => s.id === id ? { ...s, x: shape.x, y: shape.y } : s));
+        setNodes(prev => prev.map(n => n.id === id ? { ...n, isDirty: true } : n));
       }
+
       updateCanvasDisplay();
       updateHandleOffsets(id);
     }
@@ -655,7 +679,6 @@ function App() {
         shapes={shapes}
         scale={scale}
         offset={offset}
-        selectedShapeId={selectedShapeId}
       />
 
       <div

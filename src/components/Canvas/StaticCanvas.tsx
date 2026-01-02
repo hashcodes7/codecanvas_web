@@ -6,14 +6,13 @@ interface StaticCanvasProps {
     shapes: ShapeData[];
     scale: number;
     offset: { x: number, y: number };
-    selectedShapeId: string | null;
 }
 
-const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number }, scale: number, selectedShapeId: string | null) => void }, StaticCanvasProps>(
-    ({ shapes, scale, offset, selectedShapeId }, ref) => {
+const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number }, scale: number) => void }, StaticCanvasProps>(
+    ({ shapes, scale, offset }, ref) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
 
-        const draw = useCallback((currentOffset: { x: number, y: number }, currentScale: number, currentSelectedId: string | null) => {
+        const draw = useCallback((currentOffset: { x: number, y: number }, currentScale: number) => {
             const canvas = canvasRef.current;
             if (!canvas) return;
 
@@ -30,29 +29,13 @@ const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number
 
             shapes.forEach(shape => {
                 ShapeRenderer.drawShape(ctx, shape);
-
-                // Draw selection highlight
-                if (shape.id === currentSelectedId) {
-                    ctx.save();
-                    ctx.strokeStyle = '#3b82f6';
-                    ctx.lineWidth = 2 / currentScale;
-                    ctx.setLineDash([5 / currentScale, 5 / currentScale]);
-                    const padding = 4 / currentScale;
-                    ctx.strokeRect(
-                        shape.x - padding,
-                        shape.y - padding,
-                        shape.width + padding * 2,
-                        shape.height + padding * 2
-                    );
-                    ctx.restore();
-                }
             });
             ctx.restore();
         }, [shapes]);
 
         useImperativeHandle(ref, () => ({
-            syncTransform: (newOffset, newScale, newSelectedId) => {
-                draw(newOffset, newScale, newSelectedId);
+            syncTransform: (newOffset, newScale) => {
+                draw(newOffset, newScale);
             }
         }));
 
@@ -67,7 +50,7 @@ const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number
             canvas.height = height * dpr;
             canvas.style.width = `${width}px`;
             canvas.style.height = `${height}px`;
-            draw(offset, scale, selectedShapeId); // Redraw on resize
+            draw(offset, scale); // Redraw on resize
         };
 
         useEffect(() => {
@@ -77,8 +60,8 @@ const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number
         }, [draw]);
 
         useEffect(() => {
-            draw(offset, scale, selectedShapeId);
-        }, [shapes, scale, offset, selectedShapeId, draw]);
+            draw(offset, scale);
+        }, [shapes, scale, offset, draw]);
 
         return (
             <canvas
