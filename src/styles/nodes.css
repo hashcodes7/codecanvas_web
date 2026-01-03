@@ -160,13 +160,31 @@
 
 /* Ensure translations are preserved for mid-points */
 .shape-handle-container.selected .handle-left-mid,
-.shape-handle-container.selected .handle-right-mid {
+.shape-handle-container.selected .handle-right-mid,
+.canvas-node.selected .handle-left-mid,
+.canvas-node.selected .handle-right-mid,
+.shape-handle-container:hover .handle-left-mid,
+.shape-handle-container:hover .handle-right-mid,
+.canvas-node:hover .handle-left-mid,
+.canvas-node:hover .handle-right-mid {
     transform: translateY(-50%) scale(1);
 }
 
 .shape-handle-container.selected .handle-top-mid,
-.shape-handle-container.selected .handle-bottom-mid {
+.shape-handle-container.selected .handle-bottom-mid,
+.canvas-node.selected .handle-top-mid,
+.canvas-node.selected .handle-bottom-mid,
+.shape-handle-container:hover .handle-top-mid,
+.shape-handle-container:hover .handle-bottom-mid,
+.canvas-node:hover .handle-top-mid,
+.canvas-node:hover .handle-bottom-mid {
     transform: translateX(-50%) scale(1);
+}
+
+.canvas-node.selected .handle,
+.canvas-node:hover .handle,
+.shape-handle-container:hover .handle {
+    transform: scale(1);
 }
 
 .node-header {

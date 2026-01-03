@@ -628,7 +628,21 @@ function App() {
       // Align 0 degrees to TOP (where the handle is)
       angleDeg += 90;
 
-      setShapes(prev => prev.map(s => s.id === id ? { ...s, rotation: angleDeg } : s));
+      setShapes(prev => {
+        const shape = prev.find(s => s.id === id);
+        if (shape) {
+          return prev.map(s => s.id === id ? { ...s, rotation: angleDeg } : s);
+        }
+        return prev;
+      });
+
+      setNodes(prev => {
+        const node = prev.find(n => n.id === id);
+        if (node) {
+          return prev.map(n => n.id === id ? { ...n, rotation: angleDeg } : n);
+        }
+        return prev;
+      });
 
       // Update handles position implicitly by React re-render or ref update
       updateCanvasDisplay();
@@ -1148,16 +1162,35 @@ function App() {
   const handleRotateStart = (id: string, e: React.PointerEvent) => {
     e.stopPropagation();
     const shape = shapesRef.current.find(s => s.id === id);
-    if (!shape) return;
+    const node = nodesMapRef.current.get(id);
+    const item = shape || node;
 
-    const centerX = shape.x + shape.width / 2;
-    const centerY = shape.y + shape.height / 2;
+    if (!item) return;
+
+    let width = item.width;
+    let height = item.height;
+
+    // specificNodeId logic for DOM access if dimensions missing
+    if (!width || !height) {
+      const el = document.getElementById(id);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        width = rect.width / scaleRef.current;
+        height = rect.height / scaleRef.current;
+      } else {
+        width = 200; // Fallback
+        height = 100;
+      }
+    }
+
+    const centerX = item.x + (width || 0) / 2;
+    const centerY = item.y + (height || 0) / 2;
 
     rotatingShapeRef.current = {
       id,
       startX: e.clientX,
       startY: e.clientY,
-      startRotation: shape.rotation || 0,
+      startRotation: item.rotation || 0,
       centerX,
       centerY
     };
@@ -1439,6 +1472,7 @@ function App() {
             onResizePointerDown={handleResizeStart}
             updateHandleOffsets={updateHandleOffsets}
             onRotatePointerDown={handleRotateStart}
+            isLinking={!!linkingState}
             ignoreEvents={['rectangle', 'ellipse', 'diamond', 'arrow', 'pencil'].includes(currentTool)}
           />
         ))}
@@ -1459,6 +1493,8 @@ function App() {
             onRequestPermission={requestWritePermission}
             onSave={saveNodeToDisk}
             updateHandleOffsets={updateHandleOffsets}
+            onRotatePointerDown={handleRotateStart}
+            isLinking={!!linkingState}
             ignoreEvents={['rectangle', 'ellipse', 'diamond', 'arrow', 'pencil'].includes(currentTool)}
           />
         ))}

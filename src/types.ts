@@ -12,6 +12,7 @@ export interface NodeData {
     isEditing?: boolean;
     hasWritePermission?: boolean;
     isDirty?: boolean;
+    rotation?: number;
 }
 
 export interface ShapeData {

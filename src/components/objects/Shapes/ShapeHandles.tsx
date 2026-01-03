@@ -31,6 +31,7 @@ export interface ShapeHandlesProps {
     onRotatePointerDown?: (id: string, e: React.PointerEvent) => void;
     ignoreEvents?: boolean;
     hideHandles?: boolean;
+    isLinking?: boolean;
 }
 
 /* =========================
@@ -46,7 +47,8 @@ const ShapeHandles: React.FC<ShapeHandlesProps> = memo(
         updateHandleOffsets,
         onRotatePointerDown,
         ignoreEvents = false,
-        hideHandles = false
+        hideHandles = false,
+        isLinking = false
     }) => {
         useEffect(() => {
             updateHandleOffsets(shape.id);
@@ -73,59 +75,67 @@ const ShapeHandles: React.FC<ShapeHandlesProps> = memo(
                 {/* The 'selected' class likely makes them visible. */}
                 {/* But we want to prevent them even if selected. */}
 
-                {!hideHandles && (
+                {!hideHandles && (isSelected || isLinking) && (
                     <>
-                        {/* ---------- Rotation Handle ---------- */}
-                        {isSelected && onRotatePointerDown && (
-                            <div
-                                className="handle handle-rotate"
-                                style={{
-                                    left: '50%',
-                                    top: '-30px', // Position slightly outside
-                                    cursor: 'alias',
-                                    background: 'var(--bg-card)',
-                                    border: '2px solid var(--accent-primary)',
-                                    borderRadius: '50%',
-                                    transform: 'translate(-50%, -50%)' // Ensure perfect centering
-                                }}
-                                onPointerDown={(e) => {
-                                    e.stopPropagation();
-                                    onRotatePointerDown(shape.id, e);
-                                }}
-                                title="Rotate"
-                            />
+                        {/* Handles visible only when SELECTED */}
+                        {isSelected && (
+                            <>
+                                {/* ---------- Rotation Handle ---------- */}
+                                {onRotatePointerDown && (
+                                    <div
+                                        className="handle handle-rotate"
+                                        style={{
+                                            left: '50%',
+                                            top: '-30px',
+                                            cursor: 'alias',
+                                            background: 'var(--bg-card)',
+                                            border: '2px solid var(--accent-primary)',
+                                            borderRadius: '50%',
+                                            transform: 'translate(-50%, -50%)',
+                                            boxSizing: 'border-box'
+                                        }}
+                                        onPointerDown={(e) => {
+                                            e.stopPropagation();
+                                            onRotatePointerDown(shape.id, e);
+                                        }}
+                                        title="Rotate"
+                                    />
+                                )}
+
+                                {/* ---------- Corner Resize Handles ---------- */}
+                                <div
+                                    className="handle handle-top-left resize-sq"
+                                    onPointerDown={(e) =>
+                                        onResizePointerDown(shape.id, e, 'top-left')
+                                    }
+                                />
+                                <div
+                                    className="handle handle-top-right resize-sq"
+                                    onPointerDown={(e) =>
+                                        onResizePointerDown(shape.id, e, 'top-right')
+                                    }
+                                />
+                                <div
+                                    className="handle handle-bottom-left resize-sq"
+                                    onPointerDown={(e) =>
+                                        onResizePointerDown(shape.id, e, 'bottom-left')
+                                    }
+                                />
+                                <div
+                                    className="handle handle-bottom-right resize-sq"
+                                    onPointerDown={(e) =>
+                                        onResizePointerDown(shape.id, e, 'bottom-right')
+                                    }
+                                />
+                            </>
                         )}
 
-                        {/* ---------- Corner Resize Handles ---------- */}
-                        <div
-                            className="handle handle-top-left resize-sq"
-                            onPointerDown={(e) =>
-                                onResizePointerDown(shape.id, e, 'top-left')
-                            }
-                        />
-                        <div
-                            className="handle handle-top-right resize-sq"
-                            onPointerDown={(e) =>
-                                onResizePointerDown(shape.id, e, 'top-right')
-                            }
-                        />
-                        <div
-                            className="handle handle-bottom-left resize-sq"
-                            onPointerDown={(e) =>
-                                onResizePointerDown(shape.id, e, 'bottom-left')
-                            }
-                        />
-                        <div
-                            className="handle handle-bottom-right resize-sq"
-                            onPointerDown={(e) =>
-                                onResizePointerDown(shape.id, e, 'bottom-right')
-                            }
-                        />
-
-                        {/* ---------- Mid-point Connection Handles ---------- */}
+                        {/* ---------- Mid-point Connection Handles (Visible on Select OR Linking Hover) ---------- */}
+                        {/* Note: CSS handles visibility on hover if not selected. JS ensures they are in DOM. */}
                         <div
                             className="handle handle-left-mid"
                             data-handle-id="left-mid"
+                            style={{ display: 'block' }}
                             onPointerDown={(e) => {
                                 e.stopPropagation();
                                 onPointerDown(shape.id, 'left-mid');
@@ -134,6 +144,7 @@ const ShapeHandles: React.FC<ShapeHandlesProps> = memo(
                         <div
                             className="handle handle-right-mid"
                             data-handle-id="right-mid"
+                            style={{ display: 'block' }}
                             onPointerDown={(e) => {
                                 e.stopPropagation();
                                 onPointerDown(shape.id, 'right-mid');
@@ -142,6 +153,7 @@ const ShapeHandles: React.FC<ShapeHandlesProps> = memo(
                         <div
                             className="handle handle-top-mid"
                             data-handle-id="top-mid"
+                            style={{ display: 'block' }}
                             onPointerDown={(e) => {
                                 e.stopPropagation();
                                 onPointerDown(shape.id, 'top-mid');
@@ -150,6 +162,7 @@ const ShapeHandles: React.FC<ShapeHandlesProps> = memo(
                         <div
                             className="handle handle-bottom-mid"
                             data-handle-id="bottom-mid"
+                            style={{ display: 'block' }}
                             onPointerDown={(e) => {
                                 e.stopPropagation();
                                 onPointerDown(shape.id, 'bottom-mid');

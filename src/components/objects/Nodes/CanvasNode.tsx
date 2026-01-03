@@ -15,8 +15,10 @@ interface CanvasNodeProps {
     onRequestPermission: (id: string) => void;
     onSave: (id: string, content: string) => void;
     updateHandleOffsets: (id?: string) => void;
+    onRotatePointerDown?: (id: string, e: React.PointerEvent) => void;
     ignoreEvents?: boolean;
     hideHandles?: boolean;
+    isLinking?: boolean;
 }
 
 const CanvasNode = memo(({
@@ -31,8 +33,10 @@ const CanvasNode = memo(({
     onRequestPermission,
     onSave,
     updateHandleOffsets,
+    onRotatePointerDown,
     ignoreEvents = false,
-    hideHandles = false
+    hideHandles = false,
+    isLinking = false
 }: CanvasNodeProps) => {
     const codeRef = useRef<HTMLPreElement>(null);
 
@@ -78,7 +82,8 @@ const CanvasNode = memo(({
                 height: node.height,
                 maxWidth: node.width ? 'none' : undefined,
                 maxHeight: node.height ? 'none' : undefined,
-                transform: 'translate3d(0,0,0)', // Force GPU layer
+                transform: `rotate(${node.rotation || 0}deg)`,
+                transformOrigin: 'center center',
                 willChange: 'transform, width, height',
                 pointerEvents: ignoreEvents ? 'none' : 'auto'
             }}
@@ -211,17 +216,83 @@ const CanvasNode = memo(({
                 )}
             </div>
             {/* Only show handles if not hidden (e.g. during multi-selection) */}
-            {!ignoreEvents && !hideHandles && isSelected && (
+            {/* Only show handles if not hidden (e.g. during multi-selection) */}
+            {!ignoreEvents && !hideHandles && (isSelected || isLinking) && (
                 <>
-                    <div className="handle handle-left-mid" data-handle-id="left-mid"></div>
-                    <div className="handle handle-right-mid" data-handle-id="right-mid"></div>
-                    <div className="handle handle-top-mid" data-handle-id="top-mid"></div>
-                    <div className="handle handle-bottom-mid" data-handle-id="bottom-mid"></div>
+                    {/* Render helper text for isLinking debugging/fallback if needed, but not required now */}
 
+                    {/* Handles that only show if SELECTED */}
+                    {isSelected && (
+                        <>
+                            {/* Rotation Handle */}
+                            {onRotatePointerDown && (
+                                <div
+                                    className="handle handle-rotate"
+                                    style={{
+                                        left: '50%',
+
+                                        top: '-30px',
+                                        cursor: 'alias',
+                                        background: 'var(--bg-card)',
+                                        border: '2px solid var(--accent-primary)',
+                                        borderRadius: '50%',
+                                        boxSizing: 'border-box'
+                                    }}
+                                    onPointerDown={(e) => {
+                                        e.stopPropagation();
+                                        onRotatePointerDown(node.id, e);
+                                    }}
+                                    title="Rotate"
+                                />
+                            )}
+
+                            {/* Corner Resize Handles */}
+                            <div
+                                className="handle handle-top-left resize-sq"
+                                onPointerDown={(e) => onResizePointerDown(node.id, e, 'top-left')}
+                            />
+                            <div
+                                className="handle handle-top-right resize-sq"
+                                onPointerDown={(e) => onResizePointerDown(node.id, e, 'top-right')}
+                            />
+                            <div
+                                className="handle handle-bottom-left resize-sq"
+                                onPointerDown={(e) => onResizePointerDown(node.id, e, 'bottom-left')}
+                            />
+                            <div
+                                className="handle handle-bottom-right resize-sq"
+                                onPointerDown={(e) => onResizePointerDown(node.id, e, 'bottom-right')}
+                            />
+                        </>
+                    )}
+
+                    {/* Mid-point Connection Handles */}
                     <div
-                        className="resize-handle"
-                        onPointerDown={(e) => onResizePointerDown(node.id, e, 'bottom-right')}
-                    />
+                        className="handle handle-left-mid"
+                        data-handle-id="left-mid"
+                        style={{ display: 'block' }}
+                    ></div>
+                    <div
+                        className="handle handle-right-mid"
+                        data-handle-id="right-mid"
+                        style={{ display: 'block' }}
+                    ></div>
+                    <div
+                        className="handle handle-top-mid"
+                        data-handle-id="top-mid"
+                        style={{
+                            display: 'block',
+                            left: '50%',
+                        }}
+                    ></div>
+                    <div
+                        className="handle handle-bottom-mid"
+                        data-handle-id="bottom-mid"
+                        style={{
+                            display: 'block',
+                            left: '50%',
+                        }}
+                    ></div>
                 </>
             )}
         </div >
