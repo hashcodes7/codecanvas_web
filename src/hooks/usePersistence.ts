@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { ProjectStorage, FileStorage } from '../storage';
 import { FileNodeService } from '../FileNodeService';
 import type { NodeData, Connection, ShapeData, CanvasProperties } from '../types';
-import { INITIAL_NODES, STORAGE_KEYS } from '../constants';
+import { INITIAL_NODES, INITIAL_SHAPES, INITIAL_CONNECTIONS, STORAGE_KEYS } from '../constants';
 
 interface UsePersistenceProps {
     currentProjectId: string;
@@ -125,8 +125,8 @@ export function usePersistence({
                 setShapes(data.shapes || []);
             } else {
                 setNodes(INITIAL_NODES);
-                setConnections([]);
-                setShapes([]);
+                setConnections(INITIAL_CONNECTIONS);
+                setShapes(INITIAL_SHAPES);
             }
             loadingRef.current = false;
         };
