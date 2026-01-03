@@ -1413,6 +1413,17 @@ function App() {
   // Touch Handlers for Pinch Zoom attached via Ref for passive: false support
 
 
+  const clearCanvas = () => {
+    if (window.confirm('Are you sure you want to clear the entire canvas? This cannot be undone.')) {
+      addToHistory();
+      setNodes([]);
+      setConnections([]);
+      setShapes([]);
+      clearSelection();
+      setSelectionBox(null);
+    }
+  };
+
   return (
     <div
       className={`canvas-viewport ${isInteracting ? 'is-interacting' : ''}`}
@@ -1698,6 +1709,7 @@ function App() {
         setDefaultLineType={setDefaultLineType}
         addTextNode={addTextNodeWrapper}
         addFileNode={addFileNodeWrapper}
+        clearCanvas={clearCanvas}
       />
 
       <PropertiesToolbar

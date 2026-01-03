@@ -7,6 +7,7 @@ interface MainToolbarProps {
     setDefaultLineType: (type: 'line' | 'arrow' | 'bi-arrow') => void;
     addTextNode: () => void;
     addFileNode: () => void;
+    clearCanvas: () => void;
 }
 
 const MainToolbar: React.FC<MainToolbarProps> = ({
@@ -15,7 +16,8 @@ const MainToolbar: React.FC<MainToolbarProps> = ({
     defaultLineType,
     setDefaultLineType,
     addTextNode,
-    addFileNode
+    addFileNode,
+    clearCanvas
 }) => {
     return (
         <div className="main-toolbar">
@@ -109,8 +111,13 @@ const MainToolbar: React.FC<MainToolbarProps> = ({
             </div>
 
             <div className="toolbar-divider"></div>
-            <button className="toolbar-btn" title="Project Settings">
-                <i className="bi bi-share"></i>
+            <button
+                className="toolbar-btn danger"
+                onClick={clearCanvas}
+                title="Clear Canvas"
+                style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+            >
+                <i className="bi bi-radioactive"></i>
             </button>
         </div>
     );

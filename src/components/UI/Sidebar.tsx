@@ -97,7 +97,34 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <i className="bi bi-plus-lg"></i>
                     New Canvas
                 </button>
+
+                <div className="sidebar-footer" style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
+                        Created by <a href="https://www.linkedin.com/in/hashcodes7" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'none' }}>Harsh Vardhan Verma</a>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        <a
+                            href="https://www.linkedin.com/in/hashcodes7"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-subtle)', textDecoration: 'none' }}
+                            className="hover-opacity"
+                        >
+                            <i className="bi bi-linkedin" style={{ color: '#0077b5' }}></i> LinkedIn
+                        </a>
+                        <a
+                            href="https://github.com/hashcodes7"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-subtle)', textDecoration: 'none' }}
+                            className="hover-opacity"
+                        >
+                            <i className="bi bi-github" style={{ color: 'var(--text-main)' }}></i> GitHub
+                        </a>
+                    </div>
+                </div>
             </div>
+
 
             {!isSidebarOpen && (
                 <div className="sidebar-tab" onClick={() => setIsSidebarOpen(true)}>

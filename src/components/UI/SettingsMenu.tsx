@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 interface SettingsMenuProps {
     showSettings: boolean;
@@ -25,8 +25,25 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
     syntaxTheme,
     setSyntaxTheme
 }) => {
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent | PointerEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setShowSettings(false);
+            }
+        };
+
+        if (showSettings) {
+            document.addEventListener('pointerdown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('pointerdown', handleClickOutside);
+        };
+    }, [showSettings, setShowSettings]);
+
     return (
-        <div className="top-right-controls pointer-auto" onPointerDown={(e) => e.stopPropagation()}>
+        <div ref={menuRef} className="top-right-controls pointer-auto" onPointerDown={(e) => e.stopPropagation()}>
             <button
                 className={`control-btn pointer-auto ${showSettings ? 'active' : ''}`}
                 onClick={() => setShowSettings(!showSettings)}
@@ -160,6 +177,35 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
                                 Ink
                             </button>
                         </div>
+                    </div>
+                    <div className="toolbar-divider" style={{ margin: '4px 0', width: '100%', height: '1px' }}></div>
+
+                    <div className="settings-group">
+                        <div className="settings-label">About the Developer</div>
+                        <div className="settings-row" style={{ flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: 500 }}>Harsh Vardhan Verma</div>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <a
+                                    href="https://www.linkedin.com/in/hashcodes7"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-subtle)', textDecoration: 'none' }}
+                                    className="hover-opacity"
+                                >
+                                    <i className="bi bi-linkedin" style={{ color: '#0077b5' }}></i> LinkedIn
+                                </a>
+                                <a
+                                    href="https://github.com/hashcodes7"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-subtle)', textDecoration: 'none' }}
+                                    className="hover-opacity"
+                                >
+                                    <i className="bi bi-github" style={{ color: 'var(--text-main)' }}></i> GitHub
+                                </a>
+                            </div>
+                        </div>
+                        {/* End About the Developer */}
                     </div>
                 </div>
             )}

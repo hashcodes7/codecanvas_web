@@ -8,7 +8,7 @@
     /* Theme Tokens - Dark (Default) */
     --bg-main: #0a0a0c;
     --bg-node: rgba(20, 20, 25, 0.9);
-    --bg-ui: rgba(15, 23, 42, 0.95);
+    --bg-ui: #0f172a;
     --bg-ui-hover: rgba(255, 255, 255, 0.1);
     --bg-card: rgba(255, 255, 255, 0.03);
 
@@ -53,7 +53,7 @@
     /* Soft cool off-white for the abyss */
     --bg-node: #ffffff;
     /* Contrast white for nodes */
-    --bg-ui: rgba(255, 255, 255, 0.85);
+    --bg-ui: #ffffff;
     /* Frosty UI layer */
     --bg-ui-hover: rgba(139, 92, 246, 0.08);
     /* Lavender-tinted hover */
@@ -80,7 +80,7 @@
     /* Warm parchment bg */
     --bg-node: #fffdf5;
     /* Bright paper for nodes */
-    --bg-ui: rgba(250, 245, 230, 0.9);
+    --bg-ui: #faf5e6;
     /* Opaque warm UI */
     --bg-ui-hover: rgba(139, 92, 246, 0.1);
     --bg-card: #fffdf5;

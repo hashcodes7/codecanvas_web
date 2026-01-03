@@ -13,12 +13,12 @@ export const STORAGE_KEYS = {
 };
 export const PASTEL_COLORS = [
     { name: 'Default', value: 'var(--accent-primary)' },
-    { name: 'Pink', value: '#ffb7b2' },
-    { name: 'Orange', value: '#ffdac1' },
-    { name: 'Yellow', value: '#fff9b1' },
-    { name: 'Green', value: '#baffc9' },
-    { name: 'Blue', value: '#bae1ff' },
-    { name: 'Purple', value: '#e0bbe4' },
+    { name: 'Pink', value: '#F87171' },
+    { name: 'Orange', value: '#FB923C' },
+    { name: 'Yellow', value: '#FACC15' },
+    { name: 'Green', value: '#4ADE80' },
+    { name: 'Blue', value: '#60A5FA' },
+    { name: 'Purple', value: '#A78BFA' },
 ];
 
 export const THICKNESS_OPTIONS = [1, 2, 4, 6, 8];

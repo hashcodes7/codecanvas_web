@@ -90,63 +90,114 @@ const PropertiesToolbar: React.FC<PropertiesToolbarProps> = ({
                 </div>
 
                 {(activeTab === 'color' || activeTab === 'fill' || activeTab === 'text-color') && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                        {activeTab === 'fill' && (
-                            <button
-                                className="color-swatch-btn"
-                                style={{
-                                    background: 'linear-gradient(to bottom right, transparent 45%, var(--text-muted) 50%, transparent 55%)',
-                                    border: currentFillColor === 'transparent' ? '2px solid white' : '1px solid var(--border-subtle)',
-                                    width: '24px',
-                                    height: '24px'
-                                }}
-                                onClick={() => {
-                                    if (isDefaultMode && updateDefaultShapeStyle) {
-                                        updateDefaultShapeStyle((prev: any) => ({ ...prev, fillColor: 'transparent' }));
-                                    } else {
-                                        updateSelectedObjectStyle({ fillColor: 'transparent' });
-                                    }
-                                }}
-                                title="None"
-                            />
-                        )}
-                        {PASTEL_COLORS.map(color => (
-                            <button
-                                key={color.value}
-                                className="color-swatch-btn"
-                                style={{
-                                    backgroundColor: color.value.startsWith('var') ? (color.value === 'var(--accent-primary)' ? '#8b5cf6' : color.value) : color.value,
-                                    width: '24px',
-                                    height: '24px',
-                                    border: (
-                                        (activeTab === 'color' && currentColor === color.value) ||
-                                        (activeTab === 'fill' && currentFillColor === color.value) ||
-                                        (activeTab === 'text-color' && currentTextColor === color.value)
-                                    ) ? '2px solid white' : '2px solid transparent'
-                                }}
-                                onClick={() => {
+                    <>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                            {activeTab === 'fill' && (
+                                <button
+                                    className="color-swatch-btn"
+                                    style={{
+                                        background: 'linear-gradient(to bottom right, transparent 45%, var(--text-muted) 50%, transparent 55%)',
+                                        border: currentFillColor === 'transparent' ? '2px solid white' : '1px solid var(--border-subtle)',
+                                        width: '24px',
+                                        height: '24px'
+                                    }}
+                                    onClick={() => {
+                                        if (isDefaultMode && updateDefaultShapeStyle) {
+                                            updateDefaultShapeStyle((prev: any) => ({ ...prev, fillColor: 'transparent' }));
+                                        } else {
+                                            updateSelectedObjectStyle({ fillColor: 'transparent' });
+                                        }
+                                    }}
+                                    title="None"
+                                />
+                            )}
+                            {PASTEL_COLORS.map(color => (
+                                <button
+                                    key={color.value}
+                                    className="color-swatch-btn"
+                                    style={{
+                                        backgroundColor: color.value.startsWith('var') ? (color.value === 'var(--accent-primary)' ? '#8b5cf6' : color.value) : color.value,
+                                        width: '24px',
+                                        height: '24px',
+                                        border: (
+                                            (activeTab === 'color' && currentColor === color.value) ||
+                                            (activeTab === 'fill' && currentFillColor === color.value) ||
+                                            (activeTab === 'text-color' && currentTextColor === color.value)
+                                        ) ? '2px solid white' : '2px solid transparent'
+                                    }}
+                                    onClick={() => {
+                                        if (isDefaultMode && updateDefaultShapeStyle) {
+                                            if (activeTab === 'color') {
+                                                updateDefaultShapeStyle((prev: any) => ({ ...prev, strokeColor: color.value }));
+                                            } else if (activeTab === 'text-color') {
+                                                updateDefaultShapeStyle((prev: any) => ({ ...prev, textColor: color.value }));
+                                            } else {
+                                                updateDefaultShapeStyle((prev: any) => ({ ...prev, fillColor: color.value }));
+                                            }
+                                        } else {
+                                            if (activeTab === 'color') {
+                                                updateSelectedObjectStyle({ color: color.value });
+                                            } else if (activeTab === 'text-color') {
+                                                updateSelectedObjectStyle({ textColor: color.value });
+                                            } else {
+                                                updateSelectedObjectStyle({ fillColor: color.value });
+                                            }
+                                        }
+                                    }}
+                                    title={color.name}
+                                />
+                            ))}
+                        </div>
+
+                        <div style={{ width: '100%', height: '1px', background: 'var(--border-subtle)', margin: '4px 0' }} />
+
+                        {/* Custom Color Picker */}
+                        <div className="custom-color-picker" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>Custom</label>
+                            <input
+                                type="color"
+                                value={(() => {
+                                    const val = activeTab === 'color' ? currentColor :
+                                        activeTab === 'fill' ? currentFillColor : currentTextColor;
+
+                                    if (!val) return '#000000';
+                                    if (val.startsWith('#')) return val;
+                                    if (val === 'transparent') return '#ffffff';
+                                    if (val.includes('accent-primary')) return '#8b5cf6';
+                                    return '#000000';
+                                })()}
+                                onChange={(e) => {
+                                    const val = e.target.value;
                                     if (isDefaultMode && updateDefaultShapeStyle) {
                                         if (activeTab === 'color') {
-                                            updateDefaultShapeStyle((prev: any) => ({ ...prev, strokeColor: color.value }));
+                                            updateDefaultShapeStyle((prev: any) => ({ ...prev, strokeColor: val }));
                                         } else if (activeTab === 'text-color') {
-                                            updateDefaultShapeStyle((prev: any) => ({ ...prev, textColor: color.value }));
+                                            updateDefaultShapeStyle((prev: any) => ({ ...prev, textColor: val }));
                                         } else {
-                                            updateDefaultShapeStyle((prev: any) => ({ ...prev, fillColor: color.value }));
+                                            updateDefaultShapeStyle((prev: any) => ({ ...prev, fillColor: val }));
                                         }
                                     } else {
                                         if (activeTab === 'color') {
-                                            updateSelectedObjectStyle({ color: color.value });
+                                            updateSelectedObjectStyle({ color: val });
                                         } else if (activeTab === 'text-color') {
-                                            updateSelectedObjectStyle({ textColor: color.value });
+                                            updateSelectedObjectStyle({ textColor: val });
                                         } else {
-                                            updateSelectedObjectStyle({ fillColor: color.value });
+                                            updateSelectedObjectStyle({ fillColor: val });
                                         }
                                     }
                                 }}
-                                title={color.name}
+                                style={{
+                                    width: '100%',
+                                    height: '32px',
+                                    padding: '0',
+                                    border: '1px solid var(--border-medium)',
+                                    borderRadius: '6px',
+                                    background: 'var(--bg-node)',
+                                    cursor: 'pointer'
+                                }}
                             />
-                        ))}
-                    </div>
+                        </div>
+                    </>
                 )}
 
                 {activeTab === 'stroke' && (
