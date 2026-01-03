@@ -52,21 +52,25 @@ const CanvasNode = memo(({
     }, [node.isDirty, node.type, node.hasWritePermission]);
 
     useEffect(() => {
-        if (codeRef.current && (window as any).Prism && !node.isEditing) {
+        if (codeRef.current && (window as any).Prism) {
             const el = codeRef.current;
             const code = el.querySelector('code');
             if (code && node.content) {
                 (window as any).Prism.highlightElement(code);
 
-                // Apply handles after highlighting
-                activateSymbols(el);
-                addGenericHandlesToCode(el);
-                addGenericHandlesToCode(el);
-                updateHandleOffsets(node.id);
+                // Apply handles only if NOT editing (prevent massive DOM thrashing/interactions while typing)
+                if (!node.isEditing) {
+                    activateSymbols(el);
+                    addGenericHandlesToCode(el);
+                    addGenericHandlesToCode(el);
+                    updateHandleOffsets(node.id);
+                }
             } else if (node.type === 'text') {
-                activateSymbols(el);
-                addGenericHandlesToCode(el);
-                updateHandleOffsets(node.id);
+                if (!node.isEditing) {
+                    activateSymbols(el);
+                    addGenericHandlesToCode(el);
+                    updateHandleOffsets(node.id);
+                }
             }
         }
     }, [node.content, node.isEditing, node.type, updateHandleOffsets, node.id, node.title]);
@@ -141,19 +145,17 @@ const CanvasNode = memo(({
                                         <span key={i}>{i + 1}</span>
                                     ))}
                                 </div>
-                                {node.isEditing ? (
-                                    <textarea
-                                        className="code-editor-textarea"
-                                        value={node.content}
-                                        onChange={(e) => onContentChange(node.id, e.target.value)}
-                                        onPointerDown={(e) => e.stopPropagation()}
-                                        autoFocus
-                                        onBlur={() => onToggleEditing(node.id, false)}
-                                    />
-                                ) : (
+
+                                <div style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex' }}>
+                                    {/* ALWAYS Render PRE for syntax highlighting */}
                                     <pre
                                         ref={codeRef}
                                         className={`code-editor language-${getLanguageFromFilename(node.title)}`}
+                                        style={{
+                                            flex: 1,
+                                            pointerEvents: node.isEditing ? 'none' : 'auto',
+                                            opacity: 1 // Ensure visible behind textarea
+                                        }}
                                         onDoubleClick={() => {
                                             if (node.content !== undefined) {
                                                 onToggleEditing(node.id, true);
@@ -164,7 +166,33 @@ const CanvasNode = memo(({
                                             {node.content}
                                         </code>
                                     </pre>
-                                )}
+
+                                    {/* Conditionally Render Textarea ON TOP */}
+                                    {node.isEditing && (
+                                        <textarea
+                                            className="code-editor-textarea"
+                                            value={node.content}
+                                            onChange={(e) => onContentChange(node.id, e.target.value)}
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            autoFocus
+                                            spellCheck={false}
+                                            onBlur={() => onToggleEditing(node.id, false)}
+                                            style={{
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                width: '100%',
+                                                height: '100%',
+                                                color: 'transparent',
+                                                background: 'transparent',
+                                                caretColor: 'var(--text-main)',
+                                                zIndex: 2,
+                                                overflow: 'hidden',
+                                                resize: 'none'
+                                            }}
+                                        />
+                                    )}
+                                </div>
                             </>
                         ) : (
                             <div className="node-empty-content">

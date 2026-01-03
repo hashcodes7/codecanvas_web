@@ -216,6 +216,11 @@ function App() {
     setSyntaxTheme,
     updateLastModified
   });
+  // --- Theme Application ---
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-syntax-theme', syntaxTheme);
+  }, [theme, syntaxTheme]);
 
   const { addToHistory, undo, redo, clearHistory, canUndo, canRedo } = useHistory({
     nodes,
