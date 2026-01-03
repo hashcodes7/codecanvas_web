@@ -13,7 +13,7 @@ const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number
     ({ shapes, shapesRef, scale, offset }, ref) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
 
-        const draw = useCallback((currentOffset: { x: number, y: number }, currentScale: number) => {
+        const draw = useCallback((currentOffset: { x: number, y: number }, currentScale: number, overrideShapes?: ShapeData[]) => {
             const canvas = canvasRef.current;
             if (!canvas) return;
 
@@ -28,10 +28,11 @@ const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number
             ctx.translate(currentOffset.x, currentOffset.y);
             ctx.scale(currentScale, currentScale);
 
-            // Use ref.current for immediate updates during interaction
-            // This prevents desync between the resizing box (DOM) and the shape (Canvas)
-            if (shapesRef.current) {
-                shapesRef.current.forEach(shape => {
+            // Prioritize passed shapes (React State) -> then Ref (Mutable State)
+            const shapesToRender = overrideShapes || shapesRef.current;
+
+            if (shapesToRender) {
+                shapesToRender.forEach(shape => {
                     ShapeRenderer.drawShape(ctx, shape);
                 });
             }
@@ -55,17 +56,17 @@ const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number
             canvas.height = height * dpr;
             canvas.style.width = `${width}px`;
             canvas.style.height = `${height}px`;
-            draw(offset, scale); // Redraw on resize
+            draw(offset, scale, shapes); // Redraw on resize with current state
         };
 
         useEffect(() => {
             updateCanvasSize();
             window.addEventListener('resize', updateCanvasSize);
             return () => window.removeEventListener('resize', updateCanvasSize);
-        }, [draw]);
+        }, [draw, shapes]); // Add shapes dependency for resize redraw if needed, or just keep draw (which doesn't dep on shapes)
 
         useEffect(() => {
-            draw(offset, scale);
+            draw(offset, scale, shapes); // Explicitly render with latest React State
         }, [shapes, scale, offset, draw]);
 
         return (

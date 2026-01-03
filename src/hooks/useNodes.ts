@@ -4,7 +4,7 @@
  * and interactions with the FileSystem API.
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { MutableRefObject } from 'react';
+import type { RefObject } from 'react';
 import type { NodeData, ShapeData } from '../types';
 import { INITIAL_NODES } from '../constants';
 import { FileStorage } from '../storage';
@@ -12,10 +12,10 @@ import { FileNodeService } from '../FileNodeService';
 import { computeHandlePositions } from '../utils/canvasUtils';
 
 interface UseNodesProps {
-    scaleRef: MutableRefObject<number>;
-    shapesRef: MutableRefObject<ShapeData[]>;
-    viewportRef: MutableRefObject<HTMLDivElement | null>;
-    offsetRef: MutableRefObject<{ x: number; y: number }>;
+    scaleRef: RefObject<number>;
+    shapesRef: RefObject<ShapeData[]>;
+    viewportRef: RefObject<HTMLDivElement | null>;
+    offsetRef: RefObject<{ x: number; y: number }>;
 }
 
 export function useNodes({ scaleRef, shapesRef, viewportRef, offsetRef }: UseNodesProps) {
