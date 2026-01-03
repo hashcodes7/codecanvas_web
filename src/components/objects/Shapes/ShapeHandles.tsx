@@ -11,6 +11,8 @@ export interface ShapeData {
     width: number;
     height: number;
     rotation?: number;
+    text?: string;
+    fontSize?: number;
 }
 
 export interface ShapeHandlesProps {

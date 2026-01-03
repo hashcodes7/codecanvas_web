@@ -6,7 +6,7 @@ interface PropertiesToolbarProps {
     selectedObject: { type: 'node' | 'connection' | 'shape'; id: string } | null;
     deleteSelected: () => void;
     unlinkNode: (id: string) => void;
-    updateSelectedObjectStyle: (style: { color?: string; width?: number }) => void;
+    updateSelectedObjectStyle: (style: { color?: string; width?: number; fontSize?: number }) => void;
     connections: Connection[];
     shapes: ShapeData[];
     currentTool?: string;
@@ -64,21 +64,37 @@ const PropertiesToolbar: React.FC<PropertiesToolbarProps> = ({
                             })}
                         </div>
                         <div className="toolbar-divider"></div>
-                        <div className="toolbar-group">
-                            <select
-                                className="toolbar-select"
-                                onChange={(e) => updateSelectedObjectStyle({ width: Number(e.target.value) })}
+                        <div className="toolbar-group" title="Stroke Width">
+                            <input
+                                type="range"
+                                min="1"
+                                max="20"
+                                step="1"
                                 value={
                                     selectedObject.type === 'connection'
                                         ? (connections.find(c => c.id === selectedObject.id)?.style?.width || 2)
                                         : (shapes.find(s => s.id === selectedObject.id)?.strokeWidth || 2)
                                 }
-                            >
-                                {THICKNESS_OPTIONS.map(w => (
-                                    <option key={w} value={w}>{w}px</option>
-                                ))}
-                            </select>
+                                onChange={(e) => updateSelectedObjectStyle({ width: Number(e.target.value) })}
+                            />
                         </div>
+
+                        {selectedObject.type === 'shape' && (
+                            <>
+                                <div className="toolbar-divider"></div>
+                                <div className="toolbar-group" title="Font Size">
+                                    <span style={{ fontSize: '10px', color: '#888', marginRight: '4px' }}>T</span>
+                                    <input
+                                        type="range"
+                                        min="10"
+                                        max="100"
+                                        step="1"
+                                        value={shapes.find(s => s.id === selectedObject.id)?.fontSize || 14}
+                                        onChange={(e) => updateSelectedObjectStyle({ fontSize: Number(e.target.value) })}
+                                    />
+                                </div>
+                            </>
+                        )}
                     </>
                 )}
 

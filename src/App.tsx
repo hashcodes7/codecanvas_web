@@ -89,6 +89,7 @@ function App() {
     setShapes,
     shapesRef, // Exposed for useNodes handling
     addShape,
+    updateShape,
   } = useShapes();
 
   const {
@@ -171,6 +172,7 @@ function App() {
   // Freehand drawing state
   const drawingPointsRef = useRef<number[][]>([]);
   const [activeFreehandShape, setActiveFreehandShape] = useState<ShapeData | null>(null);
+  const [editingShapeId, setEditingShapeId] = useState<string | null>(null);
 
   // Default properties for new shapes
   const [defaultShapeStyle, setDefaultShapeStyle] = useState({
@@ -1203,6 +1205,31 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [deleteSelected]);
 
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    // Check if clicking on UI
+    const target = e.target as HTMLElement;
+    if (target.closest('.main-toolbar') || target.closest('.properties-toolbar') || target.closest('.canvas-controls')) return;
+
+    // Calculate canvas coordinates
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = (e.clientX - rect.left - offsetRef.current.x) / scaleRef.current;
+    const y = (e.clientY - rect.top - offsetRef.current.y) / scaleRef.current;
+
+    // Hit test shapes (Top-most first)
+    const hitShape = [...shapesRef.current].reverse().find(s => {
+      if (!['rectangle', 'ellipse', 'diamond'].includes(s.type)) return false;
+      return x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height;
+    });
+
+    if (hitShape) {
+      setEditingShapeId(hitShape.id);
+      setIsPanning(false); // Stop panning if triggered
+    } else {
+      // Create new text node if double clicking empty space? (Optional, maybe later)
+    }
+  };
+
   const handlePointerDownNode = useCallback((id: string) => {
     selectNode(id);
   }, [selectNode]);
@@ -1242,16 +1269,17 @@ function App() {
     ));
   };
 
-  const updateSelectedObjectStyle = (style: { color?: string, width?: number }) => {
+  const updateSelectedObjectStyle = (style: { color?: string, width?: number, fontSize?: number }) => {
     const obj = selectedObject;
     if (!obj) return;
 
     if (obj.type === 'connection') {
       updateConnectionStyle(obj.id, style);
     } else if (obj.type === 'shape') {
-      const shapeStyle: Partial<{ strokeColor: string, strokeWidth: number }> = {};
+      const shapeStyle: Partial<{ strokeColor: string, strokeWidth: number, fontSize: number }> = {};
       if (style.color) shapeStyle.strokeColor = style.color;
       if (style.width !== undefined) shapeStyle.strokeWidth = style.width;
+      if (style.fontSize !== undefined) shapeStyle.fontSize = style.fontSize;
       updateShapeStyle(obj.id, shapeStyle);
     }
   };
@@ -1351,6 +1379,7 @@ function App() {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onDoubleClick={handleDoubleClick}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
@@ -1364,6 +1393,7 @@ function App() {
         shapesRef={shapesRef}
         scale={scale}
         offset={offset}
+        editingShapeId={editingShapeId}
       />
 
       <InteractiveCanvas
@@ -1436,6 +1466,62 @@ function App() {
             onRotatePointerDown={handleGroupRotateStart}
           />
         )}
+
+        {/* Shape Text Editor Overlay */}
+        {editingShapeId && (() => {
+          const shape = shapes.find(s => s.id === editingShapeId);
+          if (!shape) return null;
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left: shape.x,
+                top: shape.y,
+                width: shape.width,
+                height: shape.height,
+                transform: `rotate(${shape.rotation || 0}deg)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 100,
+                pointerEvents: 'none' // Let clicks pass through container
+              }}
+            >
+              <div
+                contentEditable
+                suppressContentEditableWarning
+                spellCheck={false}
+                style={{
+                  minWidth: '10px',
+                  maxWidth: '100%',
+                  outline: 'none',
+                  color: shape.strokeColor,
+                  fontFamily: 'Inter, sans-serif',
+                  fontSize: `${shape.fontSize || 14}px`,
+                  textAlign: 'center',
+                  whiteSpace: 'pre-wrap',
+                  background: 'transparent',
+                  caretColor: shape.strokeColor,
+                  cursor: 'text',
+                  pointerEvents: 'auto'
+                }}
+                onKeyDown={(e) => e.stopPropagation()}
+                onBlur={(e) => {
+                  updateShape(shape.id, { text: e.currentTarget.innerText });
+                  setEditingShapeId(null);
+                  addToHistory();
+                }}
+                ref={(el) => {
+                  if (el && document.activeElement !== el) {
+                    el.focus();
+                  }
+                }}
+              >
+                {shape.text}
+              </div>
+            </div>
+          );
+        })()}
 
         <svg className="canvas-svg-layer" viewBox="-50000 -50000 100000 100000">
           <defs>

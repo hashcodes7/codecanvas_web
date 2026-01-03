@@ -7,10 +7,11 @@ interface StaticCanvasProps {
     shapesRef: React.MutableRefObject<ShapeData[]>;
     scale: number;
     offset: { x: number, y: number };
+    editingShapeId?: string | null;
 }
 
 const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number }, scale: number) => void }, StaticCanvasProps>(
-    ({ shapes, shapesRef, scale, offset }, ref) => {
+    ({ shapes, shapesRef, scale, offset, editingShapeId }, ref) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
 
         const draw = useCallback((currentOffset: { x: number, y: number }, currentScale: number, overrideShapes?: ShapeData[]) => {
@@ -33,11 +34,11 @@ const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number
 
             if (shapesToRender) {
                 shapesToRender.forEach(shape => {
-                    ShapeRenderer.drawShape(ctx, shape);
+                    ShapeRenderer.drawShape(ctx, shape, shape.id === editingShapeId);
                 });
             }
             ctx.restore();
-        }, [shapesRef]);
+        }, [shapesRef, editingShapeId]);
 
         useImperativeHandle(ref, () => ({
             syncTransform: (newOffset, newScale) => {
@@ -67,7 +68,7 @@ const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number
 
         useEffect(() => {
             draw(offset, scale, shapes); // Explicitly render with latest React State
-        }, [shapes, scale, offset, draw]);
+        }, [shapes, scale, offset, draw, editingShapeId]);
 
         return (
             <canvas

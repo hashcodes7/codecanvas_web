@@ -2,7 +2,7 @@ import { getStroke } from 'perfect-freehand';
 import type { ShapeData } from '../types';
 
 export class ShapeRenderer {
-    static drawShape(ctx: CanvasRenderingContext2D, shape: ShapeData) {
+    static drawShape(ctx: CanvasRenderingContext2D, shape: ShapeData, isEditing: boolean = false) {
         ctx.save();
         ctx.globalAlpha = shape.opacity;
         ctx.strokeStyle = shape.strokeColor;
@@ -95,6 +95,27 @@ export class ShapeRenderer {
             ctx.fill();
         }
         ctx.stroke();
+
+        // Draw Text if present
+        if (!isEditing && shape.text && ['rectangle', 'ellipse', 'diamond'].includes(shape.type)) {
+            const fontSize = shape.fontSize || 14;
+            ctx.fillStyle = shape.strokeColor;
+            ctx.font = `${fontSize}px Inter, sans-serif`; // Matches UI font
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            const lines = shape.text.split('\n');
+            const lineHeight = fontSize + 4;
+            const cx = x + width / 2;
+            const cy = y + height / 2;
+            const totalHeight = lines.length * lineHeight;
+            const startY = cy - (totalHeight / 2) + (lineHeight / 2);
+
+            lines.forEach((line, i) => {
+                ctx.fillText(line, cx, startY + i * lineHeight);
+            });
+        }
+
         ctx.restore();
     }
 

@@ -28,6 +28,8 @@ export interface ShapeData {
     roughness?: number;
     points?: number[][]; // For pencil: [x, y, pressure] normalized 0-1
     rotation?: number; // Rotation in degrees
+    text?: string;
+    fontSize?: number;
 }
 
 export interface Connection {
