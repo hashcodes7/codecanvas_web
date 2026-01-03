@@ -13,6 +13,7 @@ export interface ShapeData {
     rotation?: number;
     text?: string;
     fontSize?: number;
+    textColor?: string;
 }
 
 export interface ShapeHandlesProps {

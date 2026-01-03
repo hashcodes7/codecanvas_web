@@ -294,7 +294,7 @@
     -webkit-appearance: none;
     width: 80px;
     height: 4px;
-    background: var(--bg-secondary);
+    background: var(--border-medium);
     border-radius: 2px;
     outline: none;
     cursor: pointer;

@@ -99,7 +99,7 @@ export class ShapeRenderer {
         // Draw Text if present
         if (!isEditing && shape.text && ['rectangle', 'ellipse', 'diamond'].includes(shape.type)) {
             const fontSize = shape.fontSize || 14;
-            ctx.fillStyle = shape.strokeColor;
+            ctx.fillStyle = shape.textColor || shape.strokeColor;
             ctx.font = `${fontSize}px Inter, sans-serif`; // Matches UI font
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';

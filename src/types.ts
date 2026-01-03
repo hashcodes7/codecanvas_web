@@ -30,6 +30,7 @@ export interface ShapeData {
     rotation?: number; // Rotation in degrees
     text?: string;
     fontSize?: number;
+    textColor?: string;
 }
 
 export interface Connection {

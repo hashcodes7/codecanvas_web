@@ -177,7 +177,10 @@ function App() {
   // Default properties for new shapes
   const [defaultShapeStyle, setDefaultShapeStyle] = useState({
     strokeColor: '#d1d5db',
+    fillColor: 'transparent',
+    textColor: '#d1d5db',
     strokeWidth: 2,
+    fontSize: 14,
     opacity: 1
   });
 
@@ -952,9 +955,11 @@ function App() {
               width: w,
               height: h,
               strokeColor: defaultShapeStyle.strokeColor,
-              fillColor: 'transparent',
+              fillColor: defaultShapeStyle.fillColor || 'transparent',
               strokeWidth: defaultShapeStyle.strokeWidth,
-              opacity: defaultShapeStyle.opacity
+              opacity: defaultShapeStyle.opacity,
+              fontSize: defaultShapeStyle.fontSize,
+              textColor: defaultShapeStyle.textColor
             });
             setCurrentTool('select');
             addToHistory();
@@ -1263,21 +1268,23 @@ function App() {
     ));
   };
 
-  const updateShapeStyle = (id: string, style: Partial<{ strokeColor: string, strokeWidth: number }>) => {
+  const updateShapeStyle = (id: string, style: Partial<ShapeData>) => {
     setShapes(prev => prev.map(s =>
       s.id === id ? { ...s, ...style } : s
     ));
   };
 
-  const updateSelectedObjectStyle = (style: { color?: string, width?: number, fontSize?: number }) => {
+  const updateSelectedObjectStyle = (style: { color?: string, fillColor?: string, textColor?: string, width?: number, fontSize?: number }) => {
     const obj = selectedObject;
     if (!obj) return;
 
     if (obj.type === 'connection') {
       updateConnectionStyle(obj.id, style);
     } else if (obj.type === 'shape') {
-      const shapeStyle: Partial<{ strokeColor: string, strokeWidth: number, fontSize: number }> = {};
+      const shapeStyle: Partial<ShapeData> = {};
       if (style.color) shapeStyle.strokeColor = style.color;
+      if (style.fillColor) shapeStyle.fillColor = style.fillColor;
+      if (style.textColor) shapeStyle.textColor = style.textColor;
       if (style.width !== undefined) shapeStyle.strokeWidth = style.width;
       if (style.fontSize !== undefined) shapeStyle.fontSize = style.fontSize;
       updateShapeStyle(obj.id, shapeStyle);
