@@ -196,6 +196,7 @@ function App() {
   const lastMousePos = useRef({ x: 0, y: 0 });
   const draggingNodeId = useRef<string | null>(null);
   const resizingNodeRef = useRef<{ id: string, startX: number, startY: number, startW: number, startH: number, direction: string, startNodeX: number, startNodeY: number } | null>(null);
+  const rotatingShapeRef = useRef<{ id: string, startX: number, startY: number, startRotation: number, centerX: number, centerY: number } | null>(null);
   const selectedShapeIdRef = useRef(selectedShapeId);
 
   useEffect(() => { selectedShapeIdRef.current = selectedShapeId; }, [selectedShapeId]);
@@ -405,6 +406,28 @@ function App() {
       if (!isInteracting) setIsInteracting(true);
       offsetRef.current = { x: offsetRef.current.x + dx, y: offsetRef.current.y + dy };
       updateCanvasDisplay();
+    } else if (rotatingShapeRef.current) {
+      const { id, centerX, centerY } = rotatingShapeRef.current;
+
+      // Calculate angle from center to mouse
+      const rect = viewportRef.current?.getBoundingClientRect();
+      const mouseX = (e.clientX - (rect?.left || 0) - offsetRef.current.x) / scaleRef.current;
+      const mouseY = (e.clientY - (rect?.top || 0) - offsetRef.current.y) / scaleRef.current;
+
+      const angleRad = Math.atan2(mouseY - centerY, mouseX - centerX);
+      let angleDeg = angleRad * (180 / Math.PI);
+
+      // Adjust angle so 0 is up (or matches initial handle position)
+      // atan2 returns 0 for right, 90 for down. We want rotation relative to initial internal rotation.
+      // But actually, we want absolute rotation. Valid range 0-360 or -180 to 180.
+
+      // Align 0 degrees to TOP (where the handle is)
+      angleDeg += 90;
+
+      setShapes(prev => prev.map(s => s.id === id ? { ...s, rotation: angleDeg } : s));
+
+      // Update handles position implicitly by React re-render or ref update
+      updateCanvasDisplay();
     } else if (resizingNodeRef.current) {
       const { id, startX, startY, startW, startH, direction, startNodeX, startNodeY } = resizingNodeRef.current;
       const dX = (e.clientX - startX) / scaleRef.current;
@@ -610,6 +633,11 @@ function App() {
       resizingNodeRef.current = null;
     }
 
+    if (rotatingShapeRef.current) {
+      rotatingShapeRef.current = null;
+      addToHistory();
+    }
+
     if (draggingNodeId.current) {
       const id = draggingNodeId.current;
       draggingNodeId.current = null;
@@ -673,7 +701,27 @@ function App() {
     } catch (err) { }
   };
 
+  const handleRotateStart = (id: string, e: React.PointerEvent) => {
+    e.stopPropagation();
+    const shape = shapesRef.current.find(s => s.id === id);
+    if (!shape) return;
 
+    const centerX = shape.x + shape.width / 2;
+    const centerY = shape.y + shape.height / 2;
+
+    rotatingShapeRef.current = {
+      id,
+      startX: e.clientX,
+      startY: e.clientY,
+      startRotation: shape.rotation || 0,
+      centerX,
+      centerY
+    };
+
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (err) { }
+  };
 
   const handleNodeDragStart = (id: string, e: React.PointerEvent) => {
     e.stopPropagation();
@@ -906,6 +954,7 @@ function App() {
         }}
       >
 
+
         {shapes.map(shape => (
           <ShapeHandles
             key={`handles-${shape.id}`}
@@ -914,6 +963,8 @@ function App() {
             onPointerDown={startLinking}
             onResizePointerDown={handleResizeStart}
             updateHandleOffsets={updateHandleOffsets}
+            onRotatePointerDown={handleRotateStart}
+            ignoreEvents={['rectangle', 'ellipse', 'diamond', 'arrow', 'pencil'].includes(currentTool)}
           />
         ))}
 
@@ -932,6 +983,7 @@ function App() {
             onRequestPermission={requestWritePermission}
             onSave={saveNodeToDisk}
             updateHandleOffsets={updateHandleOffsets}
+            ignoreEvents={['rectangle', 'ellipse', 'diamond', 'arrow', 'pencil'].includes(currentTool)}
           />
         ))}
 

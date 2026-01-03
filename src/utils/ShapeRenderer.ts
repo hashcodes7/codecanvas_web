@@ -11,7 +11,16 @@ export class ShapeRenderer {
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
 
-        const { x, y, width, height } = shape;
+        const { x, y, width, height, rotation = 0 } = shape;
+
+        // Apply rotation if needed
+        if (rotation !== 0) {
+            const cx = x + width / 2;
+            const cy = y + height / 2;
+            ctx.translate(cx, cy);
+            ctx.rotate((rotation * Math.PI) / 180);
+            ctx.translate(-cx, -cy);
+        }
 
         ctx.beginPath();
         switch (shape.type) {

@@ -10,6 +10,7 @@ export interface ShapeData {
     y: number;
     width: number;
     height: number;
+    rotation?: number;
 }
 
 export interface ShapeHandlesProps {
@@ -24,6 +25,8 @@ export interface ShapeHandlesProps {
     ) => void;
 
     updateHandleOffsets: (id?: string) => void;
+    onRotatePointerDown?: (id: string, e: React.PointerEvent) => void;
+    ignoreEvents?: boolean;
 }
 
 /* =========================
@@ -37,6 +40,8 @@ const ShapeHandles: React.FC<ShapeHandlesProps> = memo(
         onPointerDown,
         onResizePointerDown,
         updateHandleOffsets,
+        onRotatePointerDown,
+        ignoreEvents = false
     }) => {
         useEffect(() => {
             updateHandleOffsets(shape.id);
@@ -53,8 +58,32 @@ const ShapeHandles: React.FC<ShapeHandlesProps> = memo(
                     width: shape.width,
                     height: shape.height,
                     zIndex: 5,
+                    transform: `rotate(${shape.rotation || 0}deg)`,
+                    transformOrigin: 'center center',
+                    pointerEvents: ignoreEvents ? 'none' : 'auto'
                 }}
             >
+                {/* ---------- Rotation Handle ---------- */}
+                {isSelected && onRotatePointerDown && (
+                    <div
+                        className="handle handle-rotate"
+                        style={{
+                            left: '50%',
+                            top: '-30px', // Position slightly outside
+                            cursor: 'alias',
+                            background: 'var(--bg-card)',
+                            border: '2px solid var(--accent-primary)',
+                            borderRadius: '50%',
+                            transform: 'translate(-50%, -50%)' // Ensure perfect centering
+                        }}
+                        onPointerDown={(e) => {
+                            e.stopPropagation();
+                            onRotatePointerDown(shape.id, e);
+                        }}
+                        title="Rotate"
+                    />
+                )}
+
                 {/* ---------- Corner Resize Handles ---------- */}
                 <div
                     className="handle handle-top-left resize-sq"

@@ -67,10 +67,7 @@
     transform: scale(0);
 }
 
-.canvas-node:hover .handle,
-.shape-handle-container:hover .handle {
-    transform: scale(1);
-}
+/* Removed hover scales for handle */
 
 .handle:hover {
     transform: scale(1.5) !important;
@@ -84,7 +81,6 @@
     pointer-events: auto;
 }
 
-.shape-handle-container:hover,
 .shape-handle-container.selected {
     border-color: rgba(139, 92, 246, 0.5);
 }
@@ -158,27 +154,17 @@
 }
 
 /* Visibility triggers */
-.canvas-node:hover .handle,
-.shape-handle-container:hover .handle,
 .shape-handle-container.selected .handle {
     transform: scale(1);
 }
 
 /* Ensure translations are preserved for mid-points */
-.canvas-node:hover .handle-left-mid,
-.shape-handle-container:hover .handle-left-mid,
 .shape-handle-container.selected .handle-left-mid,
-.canvas-node:hover .handle-right-mid,
-.shape-handle-container:hover .handle-right-mid,
 .shape-handle-container.selected .handle-right-mid {
     transform: translateY(-50%) scale(1);
 }
 
-.canvas-node:hover .handle-top-mid,
-.shape-handle-container:hover .handle-top-mid,
 .shape-handle-container.selected .handle-top-mid,
-.canvas-node:hover .handle-bottom-mid,
-.shape-handle-container:hover .handle-bottom-mid,
 .shape-handle-container.selected .handle-bottom-mid {
     transform: translateX(-50%) scale(1);
 }
@@ -235,7 +221,6 @@
     overflow-wrap: break-word;
     /* Ensure URLs/long words wrap */
     word-break: break-word;
-    cursor: default;
     user-select: none;
 }
 

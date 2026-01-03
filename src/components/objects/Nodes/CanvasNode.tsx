@@ -15,6 +15,7 @@ interface CanvasNodeProps {
     onRequestPermission: (id: string) => void;
     onSave: (id: string, content: string) => void;
     updateHandleOffsets: (id?: string) => void;
+    ignoreEvents?: boolean;
 }
 
 const CanvasNode = memo(({
@@ -28,7 +29,8 @@ const CanvasNode = memo(({
     onSync,
     onRequestPermission,
     onSave,
-    updateHandleOffsets
+    updateHandleOffsets,
+    ignoreEvents = false
 }: CanvasNodeProps) => {
     const codeRef = useRef<HTMLPreElement>(null);
 
@@ -75,7 +77,8 @@ const CanvasNode = memo(({
                 maxWidth: node.width ? 'none' : undefined,
                 maxHeight: node.height ? 'none' : undefined,
                 transform: 'translate3d(0,0,0)', // Force GPU layer
-                willChange: 'transform, width, height'
+                willChange: 'transform, width, height',
+                pointerEvents: ignoreEvents ? 'none' : 'auto'
             }}
             onPointerDown={() => onPointerDown(node.id)}
         >

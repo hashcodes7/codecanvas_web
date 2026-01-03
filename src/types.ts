@@ -27,6 +27,7 @@ export interface ShapeData {
     opacity: number;
     roughness?: number;
     points?: number[][]; // For pencil: [x, y, pressure] normalized 0-1
+    rotation?: number; // Rotation in degrees
 }
 
 export interface Connection {
