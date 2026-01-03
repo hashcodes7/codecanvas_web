@@ -23,6 +23,30 @@ import { usePersistence } from './hooks/usePersistence';
 import { useHistory } from './hooks/useHistory';
 import ShapeHandles from './components/objects/Shapes/ShapeHandles';
 import ConnectionLine from './components/objects/ConnectionLine';
+import GroupHandles from './components/UI/GroupHandles';
+
+// Selection Box Rect Helper
+const getNormalizedRect = (start: { x: number, y: number }, current: { x: number, y: number }) => {
+  return {
+    x: Math.min(start.x, current.x),
+    y: Math.min(start.y, current.y),
+    width: Math.abs(current.x - start.x),
+    height: Math.abs(current.y - start.y)
+  };
+};
+
+const rotatePoint = (px: number, py: number, cx: number, cy: number, angleRad: number) => {
+  const cos = Math.cos(angleRad);
+  const sin = Math.sin(angleRad);
+  const dx = px - cx;
+  const dy = py - cy;
+  return {
+    x: cx + (dx * cos - dy * sin),
+    y: cy + (dx * sin + dy * cos)
+  };
+};
+
+
 
 
 
@@ -114,15 +138,26 @@ function App() {
 
 
   const {
-    selectedNodeId,
-    selectedConnectionId,
-    selectedShapeId,
+    selectedNodeId,     // Legacy / Single helper
+    selectedConnectionId, // Legacy / Single helper
+    selectedShapeId,    // Legacy / Single helper
+    selectedNodeIds,
+    selectedConnectionIds,
+    selectedShapeIds,
     selectNode,
+    toggleNodeSelection,
     selectConnection,
     selectShape,
+    setSelection,
     clearSelection,
     selectedObject
   } = useSelection();
+
+  // Selection Box State
+  const [selectionBox, setSelectionBox] = useState<{ startX: number, startY: number, currentX: number, currentY: number } | null>(null);
+
+  // Group Transformation State (to maintain group box rotation during interaction)
+  const [groupTransform, setGroupTransform] = useState<{ bounds: { x: number, y: number, width: number, height: number } | null, rotation: number }>({ bounds: null, rotation: 0 });
 
   const [backgroundPattern, setBackgroundPattern] = useState<'grid' | 'dots' | 'lines'>('grid');
   const [backgroundOpacity, setBackgroundOpacity] = useState<number>(0.7);
@@ -146,6 +181,8 @@ function App() {
     strokeWidth: 2,
     opacity: 1
   });
+
+
 
   // Sync default color with theme
   useEffect(() => {
@@ -198,6 +235,55 @@ function App() {
   const resizingNodeRef = useRef<{ id: string, startX: number, startY: number, startW: number, startH: number, direction: string, startNodeX: number, startNodeY: number } | null>(null);
   const rotatingShapeRef = useRef<{ id: string, startX: number, startY: number, startRotation: number, centerX: number, centerY: number } | null>(null);
   const selectedShapeIdRef = useRef(selectedShapeId);
+
+  // Helper to get bounding box of current selection
+  const getSelectionBounds = useCallback(() => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let hasSelection = false;
+
+    if (selectedNodeIds.size > 0) {
+      nodesMapRef.current.forEach((node) => {
+        if (selectedNodeIds.has(node.id)) {
+          hasSelection = true;
+          minX = Math.min(minX, node.x);
+          minY = Math.min(minY, node.y);
+          const w = node.width || 200;
+          const h = node.height || 100;
+          maxX = Math.max(maxX, node.x + w);
+          maxY = Math.max(maxY, node.y + h);
+        }
+      });
+    }
+
+    if (selectedShapeIds.size > 0) {
+      shapesRef.current.forEach(shape => {
+        if (selectedShapeIds.has(shape.id)) {
+          hasSelection = true;
+          minX = Math.min(minX, shape.x);
+          minY = Math.min(minY, shape.y);
+          maxX = Math.max(maxX, shape.x + shape.width);
+          maxY = Math.max(maxY, shape.y + shape.height);
+        }
+      });
+    }
+
+    if (!hasSelection) return null;
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }, [selectedNodeIds, selectedShapeIds]);
+
+  // Group interaction ref
+  const groupInteractionRef = useRef<{
+    type: 'move' | 'resize' | 'rotate',
+    startX: number,
+    startY: number,
+    startBounds: { x: number, y: number, width: number, height: number, rotation?: number },
+    startItems: Map<string, { x: number, y: number, width: number, height: number, rotation: number }>,
+    direction?: string,
+    centerX?: number,
+    centerY?: number
+  } | null>(null);
+
+  const selectionBounds = getSelectionBounds();
 
   useEffect(() => { selectedShapeIdRef.current = selectedShapeId; }, [selectedShapeId]);
 
@@ -260,6 +346,7 @@ function App() {
       !!target.closest('.properties-toolbar');
 
     // Clear selections if clicking the empty canvas
+    let isSelectionStart = false;
     if (!isNode && !isHandle && !isConnection && !isUI && !isShapeContainer) {
       // Check for shape selection if using select tool
       if (currentTool === 'select') {
@@ -274,11 +361,24 @@ function App() {
           });
 
           if (hitShape) {
+            // Single select logic
             selectShape(hitShape.id);
             draggingNodeId.current = hitShape.id;
             lastMousePos.current = { x: e.clientX, y: e.clientY };
           } else {
+            // START BOX SELECTION
+            // Clear existing unless shift/ctrl held? For now simple clear.
             clearSelection();
+            setSelectionBox({
+              startX: x,
+              startY: y,
+              currentX: x,
+              currentY: y
+            });
+            isSelectionStart = true;
+            try {
+              (e.target as HTMLElement).setPointerCapture(e.pointerId);
+            } catch (err) { }
           }
         }
       } else {
@@ -310,7 +410,6 @@ function App() {
         if (!rect) return;
 
         startLinking(objectId, handleId);
-        return;
         return;
       }
     }
@@ -362,10 +461,12 @@ function App() {
           (e.target as HTMLElement).setPointerCapture(e.pointerId);
         } catch (err) { console.warn('Failed to capture pointer'); }
       } else {
-        setIsPanning(true);
-        try {
-          (e.target as HTMLElement).setPointerCapture(e.pointerId);
-        } catch (err) { console.warn('Failed to capture pointer'); }
+        if (!isSelectionStart) {
+          setIsPanning(true);
+          try {
+            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+          } catch (err) { console.warn('Failed to capture pointer'); }
+        }
       }
 
       lastMousePos.current = { x: e.clientX, y: e.clientY };
@@ -396,6 +497,71 @@ function App() {
 
     if (linkingState) {
       updateLinking(e);
+      return;
+    }
+
+    if (selectionBox) {
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (rect) {
+        const x = (e.clientX - rect.left - offsetRef.current.x) / scaleRef.current;
+        const y = (e.clientY - rect.top - offsetRef.current.y) / scaleRef.current;
+
+        setSelectionBox(prev => prev ? { ...prev, currentX: x, currentY: y } : null);
+
+        // Live Selection Logic
+        const box = getNormalizedRect({ x: selectionBox.startX, y: selectionBox.startY }, { x, y });
+
+        const selectedNodes: string[] = [];
+        const selectedShapes: string[] = [];
+        const selectedConn: string[] = [];
+
+        // optimized: standard loop
+        nodesMapRef.current.forEach((node) => {
+          const nw = node.width || 200;
+          const nh = node.height || 100;
+          if (
+            node.x < box.x + box.width &&
+            node.x + nw > box.x &&
+            node.y < box.y + box.height &&
+            node.y + nh > box.y
+          ) {
+            selectedNodes.push(node.id);
+          }
+        });
+
+        shapesRef.current.forEach((shape) => {
+          if (
+            shape.x < box.x + box.width &&
+            shape.x + shape.width > box.x &&
+            shape.y < box.y + box.height &&
+            shape.y + shape.height > box.y
+          ) {
+            selectedShapes.push(shape.id);
+          }
+        });
+
+        // Connections: simple bounding box of start/end
+        connectionsRef.current.forEach((conn) => {
+          const start = getHandleCanvasPos(conn.source.nodeId, conn.source.handleId);
+          const end = getHandleCanvasPos(conn.target.nodeId, conn.target.handleId);
+          const minX = Math.min(start.x, end.x);
+          const maxX = Math.max(start.x, end.x);
+          const minY = Math.min(start.y, end.y);
+          const maxY = Math.max(start.y, end.y);
+
+          // Check intersection
+          if (
+            minX < box.x + box.width &&
+            maxX > box.x &&
+            minY < box.y + box.height &&
+            maxY > box.y
+          ) {
+            selectedConn.push(conn.id);
+          }
+        });
+
+        setSelection(selectedNodes, selectedShapes, selectedConn);
+      }
       return;
     }
 
@@ -477,36 +643,191 @@ function App() {
       const dY_canvas = dy / scaleRef.current;
       const id = draggingNodeId.current;
 
-      const node = nodesMapRef.current.get(id);
-      const shape = shapesRef.current.find(s => s.id === id);
+      const isMultiSelection = (selectedNodeIds.size + selectedShapeIds.size) > 1 &&
+        (selectedNodeIds.has(id) || selectedShapeIds.has(id));
 
-      if (node) {
-        // Update ref for canvas rendering
-        node.x += dX_canvas;
-        node.y += dY_canvas;
-
-        // Manual DOM update for instant feedback (no React re-render during drag)
-        const el = document.getElementById(node.id);
-        if (el) {
-          el.style.left = `${node.x}px`;
-          el.style.top = `${node.y}px`;
+      if (isMultiSelection) {
+        selectedNodeIds.forEach(nId => {
+          const node = nodesMapRef.current.get(nId);
+          if (node) {
+            node.x += dX_canvas;
+            node.y += dY_canvas;
+            const el = document.getElementById(nId);
+            if (el) { el.style.left = `${node.x}px`; el.style.top = `${node.y}px`; }
+            updateSVGLinesForNode(nId);
+          }
+        });
+        let shapesUpdated = false;
+        selectedShapeIds.forEach(sId => {
+          const shape = shapesRef.current.find(s => s.id === sId);
+          if (shape) {
+            shape.x += dX_canvas;
+            shape.y += dY_canvas;
+            const el = document.getElementById(`handles-${sId}`);
+            if (el) { el.style.left = `${shape.x}px`; el.style.top = `${shape.y}px`; }
+            updateSVGLinesForNode(sId);
+            shapesUpdated = true;
+          }
+        });
+        if (shapesUpdated) {
+          setShapes(prev => [...prev]);
+          updateCanvasDisplay();
         }
 
-        updateSVGLinesForNode(id);
-      } else if (shape) {
-        // Update ref for canvas rendering
-        shape.x += dX_canvas;
-        shape.y += dY_canvas;
+        setGroupTransform(prev => {
+          if (prev.bounds) {
+            return { ...prev, bounds: { ...prev.bounds, x: prev.bounds.x + dX_canvas, y: prev.bounds.y + dY_canvas } };
+          }
+          return prev;
+        });
 
-        // Manual DOM update for handles (no React re-render during drag)
-        const el = document.getElementById(`handles-${id}`);
-        if (el) {
-          el.style.left = `${shape.x}px`;
-          el.style.top = `${shape.y}px`;
+      } else {
+        const node = nodesMapRef.current.get(id);
+        const shape = shapesRef.current.find(s => s.id === id);
+
+        if (node) {
+          node.x += dX_canvas;
+          node.y += dY_canvas;
+          const el = document.getElementById(node.id);
+          if (el) {
+            el.style.left = `${node.x}px`;
+            el.style.top = `${node.y}px`;
+          }
+          updateSVGLinesForNode(id);
+        } else if (shape) {
+          shape.x += dX_canvas;
+          shape.y += dY_canvas;
+          const el = document.getElementById(`handles-${id}`);
+          if (el) {
+            el.style.left = `${shape.x}px`;
+            el.style.top = `${shape.y}px`;
+          }
+          updateSVGLinesForNode(id);
+          updateCanvasDisplay();
         }
+      }
+    } else if (groupInteractionRef.current) {
+      // Handle Group Interaction
+      const { type, startX, startY, startBounds, startItems, direction } = groupInteractionRef.current;
+      const dX = (e.clientX - startX) / scaleRef.current;
+      const dY = (e.clientY - startY) / scaleRef.current;
 
-        updateSVGLinesForNode(id);
-        updateCanvasDisplay(); // Redraw static canvas with updated ref
+      if (type === 'resize' && direction) {
+        // Calculate new Group Bounds
+        let newGroupW = startBounds.width;
+        let newGroupH = startBounds.height;
+        let newGroupX = startBounds.x;
+        let newGroupY = startBounds.y;
+
+        if (direction.includes('right')) newGroupW = Math.max(10, startBounds.width + dX);
+        if (direction.includes('left')) { const d = Math.min(dX, startBounds.width - 10); newGroupW = startBounds.width - d; newGroupX = startBounds.x + d; }
+        if (direction.includes('bottom')) newGroupH = Math.max(10, startBounds.height + dY);
+        if (direction.includes('top')) { const d = Math.min(dY, startBounds.height - 10); newGroupH = startBounds.height - d; newGroupY = startBounds.y + d; }
+
+        // Calculate Scale Factors
+        const scaleX = newGroupW / startBounds.width;
+        const scaleY = newGroupH / startBounds.height;
+
+        // Apply to all items
+        startItems.forEach((dims, id) => {
+          const node = nodesMapRef.current.get(id);
+          const shape = shapesRef.current.find(s => s.id === id);
+
+          // Calculate new position relative to group origin
+          const relX = dims.x - startBounds.x;
+          const relY = dims.y - startBounds.y;
+
+          const newX = newGroupX + (relX * scaleX);
+          const newY = newGroupY + (relY * scaleY);
+          const newW = dims.width * scaleX;
+          const newH = dims.height * scaleY;
+
+          if (node) {
+            node.x = newX;
+            node.y = newY;
+            node.width = newW;
+            node.height = newH;
+            const el = document.getElementById(id);
+            if (el) {
+              el.style.left = `${newX}px`;
+              el.style.top = `${newY}px`;
+              el.style.width = `${newW}px`;
+              el.style.height = `${newH}px`;
+            }
+            updateSVGLinesForNode(id);
+          } else if (shape) {
+            shape.x = newX;
+            shape.y = newY;
+            shape.width = newW;
+            shape.height = newH;
+            // Force React update for shapes to re-render properly as they use canvas or DOM handles
+            // But for performance, we might wait for pointer up? 
+            // Shapes are SVG/Canvas rendered, so we MUST re-render or update their refs and call render. 
+            // InteractiveCanvas uses 'activeShape', StaticCanvas uses 'shapes'.
+            // We need to trigger a re-render of App to update StaticCanvas?
+            // Or verify if mutable updates reflect. StaticCanvas uses shapes prop.
+            // Let's setShapes on pointer up, but for now we need visual feedback.
+            // We can just update setShapes throttled, or just accept the ref update if we trigger updateCanvasDisplay?
+            // StaticCanvas is memoized on shapes prop. If we mutate ref, it won't re-render unless we force it.
+            // Actually, let's just trigger a re-render every frame? No, expensive.
+            // Better: updating the DOM group box handles it visually? No, individual shapes need to move.
+
+            // QUICK FIX: For smooth resize, we trigger re-render on mouse up, BUT we need visual feedback.
+            // Let's update setShapes immediately? It might be fast enough for < 100 shapes.
+            setShapes(prev => [...prev]); // Trigger re-render
+          }
+        });
+      } else if (type === 'rotate' && startItems && groupInteractionRef.current.centerX !== undefined && groupInteractionRef.current.centerY !== undefined) {
+        const cx = groupInteractionRef.current.centerX;
+        const cy = groupInteractionRef.current.centerY;
+
+        // Calculate angle
+        const rect = viewportRef.current?.getBoundingClientRect();
+        if (rect) {
+          const screenCx = rect.left + offsetRef.current.x + cx * scaleRef.current;
+          const screenCy = rect.top + offsetRef.current.y + cy * scaleRef.current;
+
+          const angleStart = Math.atan2(startY - screenCy, startX - screenCx);
+          const angleNow = Math.atan2(e.clientY - screenCy, e.clientX - screenCx);
+          const angleDiff = angleNow - angleStart;
+          const angleDeg = angleDiff * (180 / Math.PI);
+          setGroupTransform(prev => ({ ...prev, rotation: angleDeg }));
+
+          startItems.forEach((vals, id) => {
+            const node = nodesMapRef.current.get(id);
+            const shape = shapesRef.current.find(s => s.id === id);
+
+            // 1. Rotate center point
+            const itemCx = vals.x + vals.width / 2;
+            const itemCy = vals.y + vals.height / 2;
+
+            const newCenter = rotatePoint(itemCx, itemCy, cx, cy, angleDiff);
+
+            const newX = newCenter.x - vals.width / 2;
+            const newY = newCenter.y - vals.height / 2;
+
+            // 2. Add rotation to item itself
+            const newRotation = (vals.rotation || 0) + angleDeg;
+
+            if (node) {
+              node.x = newX;
+              node.y = newY;
+
+              const el = document.getElementById(id);
+              if (el) {
+                el.style.left = `${newX}px`;
+                el.style.top = `${newY}px`;
+              }
+              updateSVGLinesForNode(id);
+            } else if (shape) {
+              shape.x = newX;
+              shape.y = newY;
+              shape.rotation = newRotation;
+
+              setShapes(prev => [...prev]);
+            }
+          });
+        }
       }
     }
     lastMousePos.current = { x: e.clientX, y: e.clientY };
@@ -515,6 +836,14 @@ function App() {
   const handlePointerUp = (e: React.PointerEvent) => {
     setIsPanning(false);
     setIsInteracting(false);
+
+    if (selectionBox) {
+      setSelectionBox(null);
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch (err) { }
+      return;
+    }
 
     // Complete freehand drawing
     if (activeFreehandShape) {
@@ -638,6 +967,14 @@ function App() {
       addToHistory();
     }
 
+    if (groupInteractionRef.current) {
+      groupInteractionRef.current = null;
+      // Trigger final state save
+      setNodes(prev => [...prev]); // Commit changes
+      setShapes(prev => [...prev]);
+      addToHistory();
+    }
+
     if (draggingNodeId.current) {
       const id = draggingNodeId.current;
       draggingNodeId.current = null;
@@ -671,6 +1008,73 @@ function App() {
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     } catch (err) { }
   };
+
+  const handleGroupResizeStart = useCallback((e: React.PointerEvent, direction: string) => {
+    e.stopPropagation();
+    const bounds = getSelectionBounds();
+    if (!bounds) return;
+    setGroupTransform({ bounds: null, rotation: 0 });
+
+    const startItems = new Map<string, { x: number, y: number, width: number, height: number, rotation: number }>();
+
+    selectedNodeIds.forEach(id => {
+      const n = nodesMapRef.current.get(id);
+      if (n) startItems.set(id, { x: n.x, y: n.y, width: n.width || 200, height: n.height || 100, rotation: 0 });
+    });
+    selectedShapeIds.forEach(id => {
+      const s = shapesRef.current.find(shape => shape.id === id);
+      if (s) startItems.set(id, { x: s.x, y: s.y, width: s.width, height: s.height, rotation: s.rotation || 0 });
+    });
+
+    groupInteractionRef.current = {
+      type: 'resize',
+      startX: e.clientX,
+      startY: e.clientY,
+      startBounds: bounds,
+      startItems,
+      direction
+    };
+
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (err) { }
+  }, [getSelectionBounds, selectedNodeIds, selectedShapeIds]); // Dependencies
+
+  const handleGroupRotateStart = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+    const bounds = getSelectionBounds();
+    if (!bounds) return;
+    setGroupTransform({ bounds, rotation: 0 });
+
+    const startItems = new Map<string, { x: number, y: number, width: number, height: number, rotation: number }>();
+
+    selectedNodeIds.forEach(id => {
+      const n = nodesMapRef.current.get(id);
+      // Nodes don't have rotation yet, default 0
+      if (n) startItems.set(id, { x: n.x, y: n.y, width: n.width || 200, height: n.height || 100, rotation: 0 });
+    });
+    selectedShapeIds.forEach(id => {
+      const s = shapesRef.current.find(shape => shape.id === id);
+      if (s) startItems.set(id, { x: s.x, y: s.y, width: s.width, height: s.height, rotation: s.rotation || 0 });
+    });
+
+    const centerX = bounds.x + bounds.width / 2;
+    const centerY = bounds.y + bounds.height / 2;
+
+    groupInteractionRef.current = {
+      type: 'rotate',
+      startX: e.clientX,
+      startY: e.clientY,
+      startBounds: bounds,
+      startItems,
+      centerX,
+      centerY
+    };
+
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (err) { }
+  }, [getSelectionBounds, selectedNodeIds, selectedShapeIds]);
 
   const handleResizeStart = (id: string, e: React.PointerEvent, direction: string = 'bottom-right') => {
     e.stopPropagation();
@@ -731,21 +1135,20 @@ function App() {
   };
 
   const deleteSelected = useCallback(() => {
-    if (selectedNodeId) {
-      setNodes(prev => prev.filter(n => n.id !== selectedNodeId));
-      setConnections(prev => prev.filter(c => c.source.nodeId !== selectedNodeId && c.target.nodeId !== selectedNodeId));
-      clearSelection();
-    } else if (selectedConnectionId) {
-      setConnections(prev => prev.filter(c => c.id !== selectedConnectionId));
-      clearSelection();
-    } else if (selectedShapeId) {
-      setShapes(prev => prev.filter(s => s.id !== selectedShapeId));
-      // Also remove all connections to/from this shape
-      setConnections(prev => prev.filter(c => c.source.nodeId !== selectedShapeId && c.target.nodeId !== selectedShapeId));
+    const hasSelection = selectedNodeIds.size > 0 || selectedShapeIds.size > 0 || selectedConnectionIds.size > 0;
+
+    if (hasSelection) {
+      setNodes(prev => prev.filter(n => !selectedNodeIds.has(n.id)));
+      setShapes(prev => prev.filter(s => !selectedShapeIds.has(s.id)));
+      setConnections(prev => prev.filter(c =>
+        !selectedConnectionIds.has(c.id) &&
+        !selectedNodeIds.has(c.source.nodeId) && !selectedNodeIds.has(c.target.nodeId) &&
+        !selectedShapeIds.has(c.source.nodeId) && !selectedShapeIds.has(c.target.nodeId)
+      ));
       clearSelection();
       addToHistory();
     }
-  }, [selectedNodeId, selectedConnectionId, selectedShapeId, clearSelection, setNodes, setConnections, setShapes]);
+  }, [selectedNodeIds, selectedShapeIds, selectedConnectionIds, clearSelection, setNodes, setShapes, setConnections, addToHistory]);
 
   // Keyboard shortcuts  
   useEffect(() => {
@@ -959,7 +1362,8 @@ function App() {
           <ShapeHandles
             key={`handles-${shape.id}`}
             shape={shape}
-            isSelected={selectedShapeId === shape.id}
+            isSelected={selectedShapeIds.has(shape.id)}
+            hideHandles={(selectedNodeIds.size + selectedShapeIds.size) > 1}
             onPointerDown={startLinking}
             onResizePointerDown={handleResizeStart}
             updateHandleOffsets={updateHandleOffsets}
@@ -972,7 +1376,8 @@ function App() {
           <CanvasNode
             key={node.id}
             node={node}
-            isSelected={selectedNodeId === node.id}
+            isSelected={selectedNodeIds.has(node.id)}
+            hideHandles={(selectedNodeIds.size + selectedShapeIds.size) > 1}
             onPointerDown={handlePointerDownNode}
             onHeaderPointerDown={handleNodeDragStart}
             onResizePointerDown={handleResizeStart}
@@ -986,6 +1391,20 @@ function App() {
             ignoreEvents={['rectangle', 'ellipse', 'diamond', 'arrow', 'pencil'].includes(currentTool)}
           />
         ))}
+
+        {/* Group Selection Overlay */}
+        {/* Group Selection Overlay */}
+        {(groupTransform.bounds || selectionBounds) && (selectedNodeIds.size + selectedShapeIds.size) > 1 && (
+          <GroupHandles
+            bounds={groupTransform.bounds || selectionBounds || { x: 0, y: 0, width: 0, height: 0 }}
+            rotation={groupTransform.rotation}
+            onPointerDown={(e) => {
+              // Start dragging group - handled by object drag currently
+            }}
+            onResizePointerDown={handleGroupResizeStart}
+            onRotatePointerDown={handleGroupRotateStart}
+          />
+        )}
 
         <svg className="canvas-svg-layer" viewBox="-50000 -50000 100000 100000">
           <defs>
@@ -1019,7 +1438,7 @@ function App() {
               <ConnectionLine
                 key={conn.id}
                 conn={conn}
-                isSelected={selectedConnectionId === conn.id}
+                isSelected={selectedConnectionIds.has(conn.id)}
                 startX={start.x}
                 startY={start.y}
                 endX={end.x}
@@ -1034,6 +1453,26 @@ function App() {
               <path
                 d={getPathData(linkingState.startX, linkingState.startY, linkingState.targetX, linkingState.targetY)}
                 className="temp-connection"
+              />
+            );
+          })()}
+
+          {/* Selection Box Overlay */}
+          {selectionBox && (() => {
+            const box = getNormalizedRect(
+              { x: selectionBox.startX, y: selectionBox.startY },
+              { x: selectionBox.currentX, y: selectionBox.currentY }
+            );
+            return (
+              <rect
+                x={box.x}
+                y={box.y}
+                width={box.width}
+                height={box.height}
+                fill="rgba(59, 130, 246, 0.1)"
+                stroke="rgba(59, 130, 246, 0.5)"
+                strokeWidth="1"
+                pointerEvents="none"
               />
             );
           })()}

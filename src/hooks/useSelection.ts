@@ -1,58 +1,121 @@
 /**
  * Manages the selection state for Nodes, Connections, and Shapes.
- * Ensures mutual exclusivity of selection (only one object selected at a time).
+ * Supports multi-selection.
  */
 import { useState, useMemo, useCallback } from 'react';
 
 export function useSelection() {
-    const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-    const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
-    const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+    const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
+    const [selectedConnectionIds, setSelectedConnectionIds] = useState<Set<string>>(new Set());
+    const [selectedShapeIds, setSelectedShapeIds] = useState<Set<string>>(new Set());
 
-    const selectNode = useCallback((id: string | null) => {
-        setSelectedNodeId(id);
-        if (id) {
-            setSelectedConnectionId(null);
-            setSelectedShapeId(null);
+    const selectNode = useCallback((id: string | null, multi = false) => {
+        if (!id) {
+            if (!multi) {
+                setSelectedNodeIds(new Set());
+                setSelectedConnectionIds(new Set());
+                setSelectedShapeIds(new Set());
+            }
+            return;
+        }
+
+        setSelectedNodeIds(prev => {
+            const next = new Set(multi ? prev : []);
+            next.add(id);
+            return next;
+        });
+
+        if (!multi) {
+            setSelectedConnectionIds(new Set());
+            setSelectedShapeIds(new Set());
         }
     }, []);
 
-    const selectConnection = useCallback((id: string | null) => {
-        setSelectedConnectionId(id);
-        if (id) {
-            setSelectedNodeId(null);
-            setSelectedShapeId(null);
+    const toggleNodeSelection = useCallback((id: string) => {
+        setSelectedNodeIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    }, []);
+
+    const selectConnection = useCallback((id: string | null, multi = false) => {
+        if (!id) {
+            if (!multi) {
+                setSelectedConnectionIds(new Set());
+            }
+            return;
+        }
+
+        setSelectedConnectionIds(prev => {
+            const next = new Set(multi ? prev : []);
+            next.add(id);
+            return next;
+        });
+
+        if (!multi) {
+            setSelectedNodeIds(new Set());
+            setSelectedShapeIds(new Set());
         }
     }, []);
 
-    const selectShape = useCallback((id: string | null) => {
-        setSelectedShapeId(id);
-        if (id) {
-            setSelectedNodeId(null);
-            setSelectedConnectionId(null);
+    const selectShape = useCallback((id: string | null, multi = false) => {
+        if (!id) {
+            if (!multi) {
+                setSelectedShapeIds(new Set());
+            }
+            return;
         }
+
+        setSelectedShapeIds(prev => {
+            const next = new Set(multi ? prev : []);
+            next.add(id);
+            return next;
+        });
+
+        if (!multi) {
+            setSelectedNodeIds(new Set());
+            setSelectedConnectionIds(new Set());
+        }
+    }, []);
+
+    const setSelection = useCallback((nodes: string[], shapes: string[], connections: string[]) => {
+        setSelectedNodeIds(new Set(nodes));
+        setSelectedShapeIds(new Set(shapes));
+        setSelectedConnectionIds(new Set(connections));
     }, []);
 
     const clearSelection = useCallback(() => {
-        setSelectedNodeId(null);
-        setSelectedConnectionId(null);
-        setSelectedShapeId(null);
+        setSelectedNodeIds(new Set());
+        setSelectedConnectionIds(new Set());
+        setSelectedShapeIds(new Set());
     }, []);
 
     const selectedObject = useMemo(() => {
-        if (selectedNodeId) return { type: 'node' as const, id: selectedNodeId };
-        if (selectedConnectionId) return { type: 'connection' as const, id: selectedConnectionId };
-        if (selectedShapeId) return { type: 'shape' as const, id: selectedShapeId };
+        if (selectedNodeIds.size === 1) return { type: 'node' as const, id: Array.from(selectedNodeIds)[0] };
+        if (selectedConnectionIds.size === 1) return { type: 'connection' as const, id: Array.from(selectedConnectionIds)[0] };
+        if (selectedShapeIds.size === 1) return { type: 'shape' as const, id: Array.from(selectedShapeIds)[0] };
         return null;
-    }, [selectedNodeId, selectedConnectionId, selectedShapeId]);
+    }, [selectedNodeIds, selectedConnectionIds, selectedShapeIds]);
+
+    // Backward compatibility / Single-select helpers
+    const selectedNodeId = useMemo(() => selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null, [selectedNodeIds]);
+    const selectedConnectionId = useMemo(() => selectedConnectionIds.size === 1 ? Array.from(selectedConnectionIds)[0] : null, [selectedConnectionIds]);
+    const selectedShapeId = useMemo(() => selectedShapeIds.size === 1 ? Array.from(selectedShapeIds)[0] : null, [selectedShapeIds]);
 
     return {
+        selectedNodeIds,
+        selectedConnectionIds,
+        selectedShapeIds,
         selectedNodeId,
         selectedConnectionId,
         selectedShapeId,
         selectNode,
+        toggleNodeSelection,
         selectConnection,
         selectShape,
+        setSelection,
         clearSelection,
         selectedObject
     };

@@ -16,6 +16,7 @@ interface CanvasNodeProps {
     onSave: (id: string, content: string) => void;
     updateHandleOffsets: (id?: string) => void;
     ignoreEvents?: boolean;
+    hideHandles?: boolean;
 }
 
 const CanvasNode = memo(({
@@ -30,7 +31,8 @@ const CanvasNode = memo(({
     onRequestPermission,
     onSave,
     updateHandleOffsets,
-    ignoreEvents = false
+    ignoreEvents = false,
+    hideHandles = false
 }: CanvasNodeProps) => {
     const codeRef = useRef<HTMLPreElement>(null);
 
@@ -208,17 +210,20 @@ const CanvasNode = memo(({
                     </div>
                 )}
             </div>
-            <>
-                <div className="handle handle-left-mid" data-handle-id="left-mid"></div>
-                <div className="handle handle-right-mid" data-handle-id="right-mid"></div>
-                <div className="handle handle-top-mid" data-handle-id="top-mid"></div>
-                <div className="handle handle-bottom-mid" data-handle-id="bottom-mid"></div>
-            </>
+            {/* Only show handles if not hidden (e.g. during multi-selection) */}
+            {!ignoreEvents && !hideHandles && isSelected && (
+                <>
+                    <div className="handle handle-left-mid" data-handle-id="left-mid"></div>
+                    <div className="handle handle-right-mid" data-handle-id="right-mid"></div>
+                    <div className="handle handle-top-mid" data-handle-id="top-mid"></div>
+                    <div className="handle handle-bottom-mid" data-handle-id="bottom-mid"></div>
 
-            <div
-                className="resize-handle"
-                onPointerDown={(e) => onResizePointerDown(node.id, e, 'bottom-right')}
-            />
+                    <div
+                        className="resize-handle"
+                        onPointerDown={(e) => onResizePointerDown(node.id, e, 'bottom-right')}
+                    />
+                </>
+            )}
         </div >
     );
 });
