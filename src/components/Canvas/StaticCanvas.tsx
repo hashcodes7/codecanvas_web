@@ -4,12 +4,13 @@ import { ShapeRenderer } from '../../utils/ShapeRenderer';
 
 interface StaticCanvasProps {
     shapes: ShapeData[];
+    shapesRef: React.MutableRefObject<ShapeData[]>;
     scale: number;
     offset: { x: number, y: number };
 }
 
 const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number }, scale: number) => void }, StaticCanvasProps>(
-    ({ shapes, scale, offset }, ref) => {
+    ({ shapes, shapesRef, scale, offset }, ref) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
 
         const draw = useCallback((currentOffset: { x: number, y: number }, currentScale: number) => {
@@ -27,11 +28,15 @@ const StaticCanvas = forwardRef<{ syncTransform: (offset: { x: number, y: number
             ctx.translate(currentOffset.x, currentOffset.y);
             ctx.scale(currentScale, currentScale);
 
-            shapes.forEach(shape => {
-                ShapeRenderer.drawShape(ctx, shape);
-            });
+            // Use ref.current for immediate updates during interaction
+            // This prevents desync between the resizing box (DOM) and the shape (Canvas)
+            if (shapesRef.current) {
+                shapesRef.current.forEach(shape => {
+                    ShapeRenderer.drawShape(ctx, shape);
+                });
+            }
             ctx.restore();
-        }, [shapes]);
+        }, [shapesRef]);
 
         useImperativeHandle(ref, () => ({
             syncTransform: (newOffset, newScale) => {

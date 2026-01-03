@@ -1364,6 +1364,7 @@ function App() {
       <StaticCanvas
         ref={staticCanvasRef}
         shapes={shapes}
+        shapesRef={shapesRef}
         scale={scale}
         offset={offset}
       />
