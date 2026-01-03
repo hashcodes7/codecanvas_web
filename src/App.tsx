@@ -167,7 +167,7 @@ function App() {
   const [isPanning, setIsPanning] = useState(false);
   const [isInteracting, setIsInteracting] = useState(false);
 
-  const [currentTool, setCurrentTool] = useState<'select' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow' | 'pencil'>('select');
+  const [currentTool, setCurrentTool] = useState<'select' | 'hand' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow' | 'pencil'>('select');
   const [showSettings, setShowSettings] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -344,6 +344,17 @@ function App() {
       !!target.closest('.glass-container') ||
       !!target.closest('.top-right-controls') ||
       !!target.closest('.properties-toolbar');
+
+    if (currentTool === 'hand') {
+      if (!isUI) {
+        setIsPanning(true);
+        lastMousePos.current = { x: e.clientX, y: e.clientY };
+        try {
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        } catch (err) { }
+      }
+      return;
+    }
 
     // Clear selections if clicking the empty canvas
     let isSelectionStart = false;
@@ -1338,7 +1349,7 @@ function App() {
       ref={viewportRef}
       style={{
         '--grid-opacity': backgroundOpacity * 0.1,
-        cursor: isPanning ? 'grabbing' : (currentTool === 'select' ? 'var(--cursor-select)' : 'crosshair')
+        cursor: isPanning ? 'grabbing' : (currentTool === 'select' ? 'var(--cursor-select)' : (currentTool === 'hand' ? 'grab' : 'crosshair'))
       } as any}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

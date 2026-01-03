@@ -1,8 +1,8 @@
 import React from 'react';
 
 interface MainToolbarProps {
-    currentTool: 'select' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow' | 'pencil';
-    setCurrentTool: (tool: 'select' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow' | 'pencil') => void;
+    currentTool: 'select' | 'hand' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow' | 'pencil';
+    setCurrentTool: (tool: 'select' | 'hand' | 'rectangle' | 'ellipse' | 'diamond' | 'arrow' | 'pencil') => void;
     defaultLineType: 'line' | 'arrow' | 'bi-arrow';
     setDefaultLineType: (type: 'line' | 'arrow' | 'bi-arrow') => void;
     addTextNode: () => void;
@@ -26,6 +26,13 @@ const MainToolbar: React.FC<MainToolbarProps> = ({
                     title="Select Tool"
                 >
                     <i className="bi bi-cursor mirrored-icon"></i>
+                </button>
+                <button
+                    className={`toolbar-btn ${currentTool === 'hand' ? 'active' : ''}`}
+                    onClick={() => setCurrentTool('hand')}
+                    title="Hand Tool (Pan)"
+                >
+                    <i className="fa-regular fa-hand"></i>
                 </button>
                 <button
                     className={`toolbar-btn ${currentTool === 'rectangle' ? 'active' : ''}`}
