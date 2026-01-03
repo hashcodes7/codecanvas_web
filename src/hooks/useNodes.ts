@@ -3,7 +3,8 @@
  * Handles creation, file syncing, content updates, handle offset calculations,
  * and interactions with the FileSystem API.
  */
-import { useState, useRef, useEffect, useCallback, MutableRefObject } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import type { MutableRefObject } from 'react';
 import type { NodeData, ShapeData } from '../types';
 import { INITIAL_NODES } from '../constants';
 import { FileStorage } from '../storage';

@@ -134,18 +134,15 @@ function App() {
     startLinking,
     updateLinking,
     completeLinking
-  } = useConnections({ nodesMapRef, scaleRef, offsetRef, viewportRef, getHandleCanvasPos, updateHandleOffsets });
+  } = useConnections({ scaleRef, offsetRef, viewportRef, getHandleCanvasPos, updateHandleOffsets });
 
 
   const {
-    selectedNodeId,     // Legacy / Single helper
-    selectedConnectionId, // Legacy / Single helper
     selectedShapeId,    // Legacy / Single helper
     selectedNodeIds,
     selectedConnectionIds,
     selectedShapeIds,
     selectNode,
-    toggleNodeSelection,
     selectConnection,
     selectShape,
     setSelection,
@@ -1435,9 +1432,6 @@ function App() {
           <GroupHandles
             bounds={groupTransform.bounds || selectionBounds || { x: 0, y: 0, width: 0, height: 0 }}
             rotation={groupTransform.rotation}
-            onPointerDown={(e) => {
-              // Start dragging group - handled by object drag currently
-            }}
             onResizePointerDown={handleGroupResizeStart}
             onRotatePointerDown={handleGroupRotateStart}
           />

@@ -3,7 +3,6 @@ import React, { memo } from 'react';
 interface GroupHandlesProps {
     bounds: { x: number, y: number, width: number, height: number };
     rotation?: number;
-    onPointerDown: (e: React.PointerEvent) => void;
     onResizePointerDown: (e: React.PointerEvent, direction: string) => void;
     onRotatePointerDown: (e: React.PointerEvent) => void;
 }
@@ -11,7 +10,6 @@ interface GroupHandlesProps {
 const GroupHandles: React.FC<GroupHandlesProps> = memo(({
     bounds,
     rotation = 0,
-    onPointerDown,
     onResizePointerDown,
     onRotatePointerDown
 }) => {
@@ -83,7 +81,8 @@ const GroupHandles: React.FC<GroupHandlesProps> = memo(({
                     top: -25, // Above the box
                     width: '10px',
                     height: '10px',
-                    background: 'var(--accent-secondary)',
+                    background: 'var(--bg-card)', // Hollow look (matches background)
+                    border: '2px solid var(--accent-secondary)', // Color only on border
                     borderRadius: '50%',
                     transform: 'translateX(-50%)',
                     cursor: 'grab',

@@ -3,11 +3,11 @@
  * Handles linking interactions, temporary connection lines during creation,
  * and maintains the map of connections per node.
  */
-import { useState, useRef, useEffect, useCallback, MutableRefObject } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import type { MutableRefObject } from 'react';
 import type { Connection } from '../types';
 
 interface UseConnectionsProps {
-    nodesMapRef: MutableRefObject<Map<string, any>>;
     scaleRef: MutableRefObject<number>;
     offsetRef: MutableRefObject<{ x: number; y: number }>;
     viewportRef: MutableRefObject<HTMLDivElement | null>;
@@ -16,7 +16,6 @@ interface UseConnectionsProps {
 }
 
 export function useConnections({
-    nodesMapRef,
     scaleRef,
     offsetRef,
     viewportRef,

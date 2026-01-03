@@ -2,7 +2,8 @@
  * Manages touch gestures (pinch-zoom) and mouse wheel interactions for the canvas.
  * Implements non-passive event listeners for proper browser zoom prevention.
  */
-import { useEffect, useRef, MutableRefObject } from 'react';
+import { useEffect, useRef } from 'react';
+import type { MutableRefObject } from 'react';
 
 interface UseGesturesProps {
     viewportRef: MutableRefObject<HTMLDivElement | null>;
