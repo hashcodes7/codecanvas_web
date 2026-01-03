@@ -366,6 +366,31 @@ function App() {
             draggingNodeId.current = hitShape.id;
             lastMousePos.current = { x: e.clientX, y: e.clientY };
           } else {
+            // Check if clicking inside Group Selection (Multi-Select Move)
+            const bounds = groupTransform.bounds || selectionBounds;
+            const isMultiSelection = (selectedNodeIds.size + selectedShapeIds.size) > 1;
+
+            if (isMultiSelection && bounds && currentTool === 'select') {
+              if (
+                x >= bounds.x &&
+                x <= bounds.x + bounds.width &&
+                y >= bounds.y &&
+                y <= bounds.y + bounds.height
+              ) {
+                // Drag the group by using a proxy ID (first selected item)
+                // The dragging logic checks for isMultiSelection and moves all items
+                const firstId = selectedNodeIds.values().next().value || selectedShapeIds.values().next().value;
+                if (firstId) {
+                  draggingNodeId.current = firstId;
+                  lastMousePos.current = { x: e.clientX, y: e.clientY };
+                  try {
+                    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                  } catch (err) { }
+                  return;
+                }
+              }
+            }
+
             // START BOX SELECTION
             // Clear existing unless shift/ctrl held? For now simple clear.
             clearSelection();
