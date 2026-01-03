@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { STORAGE_KEYS } from '../constants';
+import { STORAGE_KEYS, INITIAL_NODES, INITIAL_SHAPES, INITIAL_CONNECTIONS } from '../constants';
 import { ProjectStorage } from '../storage';
 import type { CanvasManifestItem, CanvasProperties } from '../types';
 
@@ -44,8 +44,9 @@ export const useProjectManager = () => {
         };
         localStorage.setItem(`${STORAGE_KEYS.PROPS_PREFIX}${newId}`, JSON.stringify(initialProps));
 
-        // Initialize empty objects in IndexedDB
-        await ProjectStorage.saveProjectObjects(newId, [], [], []);
+        // Initialize with default template objects in IndexedDB
+        // Importing INITIAL constants is required at top of file
+        await ProjectStorage.saveProjectObjects(newId, INITIAL_NODES, INITIAL_CONNECTIONS, INITIAL_SHAPES);
 
         // Update manifest
         setManifest(prev => {
